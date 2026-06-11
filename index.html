@@ -1,0 +1,989 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>全球科技权力图谱 · Tech Power Map</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<style>
+:root{--bg:#0a0d1a;--panel:#11162a;--panel2:#171d36;--line:#2a3252;--txt:#e8ecf8;--dim:#8a93b8;
+--g1:#4da3ff;--g2:#b67aff;--g3:#ffb84d;--g4:#ff6b6b;--g5:#4dd9a8;--g6:#f06ec1;}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--txt);font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;overflow:hidden;height:100vh}
+#graph{position:absolute;inset:0;cursor:grab}
+#topbar{position:fixed;top:0;left:0;right:0;z-index:20;display:flex;align-items:center;gap:10px;padding:10px 14px;
+background:linear-gradient(180deg,rgba(10,13,26,.96),rgba(10,13,26,.75) 80%,transparent);flex-wrap:wrap;pointer-events:none}
+#topbar *{pointer-events:auto}
+#topbar h1{font-size:17px;font-weight:700;letter-spacing:.5px;white-space:nowrap}
+#topbar h1 span{color:var(--dim);font-size:11px;font-weight:400;margin-left:8px}
+.searchwrap{position:relative}
+#search{background:var(--panel);border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:7px 12px;width:230px;font-size:13px;outline:none}
+#search:focus{border-color:var(--g1)}
+#sugg{position:absolute;top:36px;left:0;width:280px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;max-height:260px;overflow:auto;display:none;z-index:30}
+#sugg div{padding:7px 12px;font-size:13px;cursor:pointer;display:flex;justify-content:space-between;gap:8px}
+#sugg div:hover{background:#222a4d}
+#sugg .o{color:var(--dim);font-size:11px}
+.btn{background:var(--panel);border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:7px 13px;font-size:13px;cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:var(--g1)}
+.btn.active{background:#1d3a6b;border-color:var(--g1);color:#bcd8ff}
+#hint{font-size:12px;color:var(--dim)}
+#panel{position:fixed;top:62px;right:12px;bottom:12px;width:340px;background:rgba(17,22,42,.94);border:1px solid var(--line);
+border-radius:14px;z-index:25;display:none;flex-direction:column;backdrop-filter:blur(6px);overflow:hidden}
+#panel.show{display:flex}
+#phead{padding:14px 16px 10px;border-bottom:1px solid var(--line);position:relative;flex-shrink:0}
+#pclose{position:absolute;top:10px;right:12px;background:none;border:none;color:var(--dim);font-size:18px;cursor:pointer}
+#pbody{padding:12px 16px;overflow-y:auto;flex:1 1 0;min-height:0;max-height:calc(100vh - 200px);overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+#pbody::-webkit-scrollbar{width:10px}
+#pbody::-webkit-scrollbar-thumb{background:#3a4570;border-radius:5px;border:2px solid #11162a}
+#pbody::-webkit-scrollbar-thumb:hover{background:#4d5a8f}
+.pname{font-size:18px;font-weight:700}
+.pen{color:var(--dim);font-size:12px;margin-top:2px}
+.ptitle{font-size:12.5px;color:#c2cbe8;margin-top:6px;line-height:1.5}
+.tag{display:inline-block;font-size:11px;padding:2px 8px;border-radius:10px;margin-top:8px}
+.rel{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:9px 11px;margin-bottom:8px;cursor:pointer}
+.rel:hover{border-color:var(--g1)}
+.rel .rh{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;flex-wrap:wrap}
+.rel .rd{font-size:12px;color:#aab3d6;margin-top:4px;line-height:1.55}
+.kbadge{font-size:10.5px;padding:1px 7px;border-radius:8px;color:#0a0d1a;font-weight:700}
+.sec{font-size:12px;color:var(--dim);margin:10px 0 8px;letter-spacing:1px}
+#legend{position:fixed;left:12px;bottom:12px;z-index:15;background:rgba(17,22,42,.9);border:1px solid var(--line);border-radius:12px;padding:10px 14px;font-size:12px;backdrop-filter:blur(6px)}
+#legend .lrow{display:flex;align-items:center;gap:7px;margin:3px 0;cursor:pointer;user-select:none}
+#legend .lrow.off{opacity:.32}
+#legend .dot{width:10px;height:10px;border-radius:50%}
+#legend .ltitle{color:var(--dim);margin-bottom:5px;letter-spacing:1px;font-size:11px}
+#klegend{position:fixed;left:12px;bottom:12px;display:none}
+#tooltip{position:fixed;pointer-events:none;background:rgba(23,29,54,.97);border:1px solid var(--line);border-radius:10px;
+padding:9px 12px;font-size:12.5px;z-index:40;display:none;max-width:300px;line-height:1.5;box-shadow:0 6px 24px rgba(0,0,0,.5)}
+#tooltip b{font-size:13.5px}
+#tooltip .tt-en{color:var(--dim);font-size:11px}
+#pathbar{position:fixed;top:62px;left:50%;transform:translateX(-50%);z-index:18;background:rgba(29,42,80,.95);border:1px solid var(--g1);
+border-radius:12px;padding:9px 16px;font-size:13px;display:none;align-items:center;gap:10px;backdrop-filter:blur(6px)}
+.slot{background:var(--panel);border:1px dashed var(--dim);border-radius:8px;padding:3px 10px;min-width:90px;text-align:center;font-size:12.5px}
+.slot.filled{border-style:solid;border-color:var(--g1);color:#bcd8ff}
+#stats{font-size:11.5px;color:var(--dim);margin-left:auto;white-space:nowrap}
+::-webkit-scrollbar{width:8px}::-webkit-scrollbar-thumb{background:#2a3252;border-radius:4px}
+#erabar{position:fixed;left:50%;transform:translateX(-50%);bottom:12px;z-index:15;background:rgba(17,22,42,.92);border:1px solid var(--line);border-radius:12px;padding:8px 12px;display:flex;gap:6px;backdrop-filter:blur(6px);flex-wrap:wrap;max-width:72vw;justify-content:center}
+.echip{font-size:11.5px;padding:4px 10px;border-radius:9px;background:var(--panel2);border:1px solid var(--line);cursor:pointer;user-select:none;white-space:nowrap;color:var(--txt)}
+.echip small{color:var(--dim);margin-left:4px;font-size:10px}
+.echip.off{opacity:.3}
+.ttav{width:46px;height:46px;border-radius:50%;object-fit:cover;float:left;margin:2px 8px 2px 0;border:2px solid #2a3252}
+.phav{width:54px;height:54px;border-radius:50%;object-fit:cover;float:right;border:2px solid #2a3252;margin-left:8px}
+@media(max-width:760px){#panel{width:calc(100vw - 24px)}#search{width:150px}}
+</style>
+</head>
+<body>
+<div id="topbar">
+<h1>全球科技权力图谱<span>Tech Power Map · 2026.6</span></h1>
+<div class="searchwrap"><input id="search" placeholder="搜索人物 (中/英文名)…" autocomplete="off"><div id="sugg"></div></div>
+<button class="btn" id="modeBtn">⇄ 双人关系查询</button>
+<button class="btn" id="insightBtn">✦ 隐藏关系</button>
+<button class="btn" id="resetBtn">重置视图</button>
+<span id="hint">点击人物看TA的关系网 · 点击连线看两人关系</span>
+<span id="stats"></span>
+</div>
+<div id="pathbar"><b>双人关系查询:</b><span class="slot" id="slotA">点选第一人</span>→<span class="slot" id="slotB">点选第二人</span><button class="btn" id="pathClear">清空</button><button class="btn" id="pathExit">退出</button></div>
+<div id="graph"></div>
+<div id="legend"></div>
+<div id="erabar"></div>
+<div id="panel"><div id="phead"><button id="pclose">✕</button><div id="pheadc"></div></div><div id="pbody"></div></div>
+<div id="tooltip"></div>
+<script>
+const GROUPS={1:["科技巨头",getComputedStyle(document.documentElement).getPropertyValue('--g1').trim()||"#4da3ff"],2:["AI 阵营","#b67aff"],3:["半导体/硬件","#ffb84d"],4:["中国科技","#ff6b6b"],5:["投资人","#4dd9a8"],6:["平台新贵",'#f06ec1'],7:["先驱与传奇","#9aa5c4"]};
+const KINDS={cofounder:["创业搭档","#ffd166"],work:["共事/上下级","#7fb3ff"],invest:["投资","#4dd9a8"],mentor:["师徒/提携","#c9a7ff"],rival:["竞争对手","#ff7b7b"],ally:["合作盟友","#67e0e3"],friend:["私交好友","#ffa7d1"],family:["家人/伴侣","#ff5da2"],feud:["恩怨/反目","#ff4d4d"]};
+const ERAS={ind:["工业与电气","1870-1945"],elec:["晶体管与大型机","1945-1975"],pc:["PC与软件","1975-1995"],web:["互联网","1995-2010"],mob:["移动与云","2010-2020"],ai:["AI时代","2020s"]};
+const PEOPLE=[
+{id:"cook",en:"Tim Cook",zh:"蒂姆·库克",org:"Apple 苹果",title:"CEO(2026年9月转任执行董事长,已钦定接班人)",g:1,era:"mob"},
+{id:"ternus",en:"John Ternus",zh:"约翰·特努斯",org:"Apple 苹果",title:"候任CEO(2026年9月1日接任),原硬件工程高级副总裁",g:1,era:"ai"},
+{id:"ive",en:"Jony Ive",zh:"乔尼·艾维",org:"LoveFrom / io",title:"传奇设计师,前苹果首席设计官,现与OpenAI共建AI硬件",g:1,era:"web"},
+{id:"nadella",en:"Satya Nadella",zh:"萨提亚·纳德拉",org:"Microsoft 微软",title:"董事长兼CEO,主导微软AI转型与OpenAI联盟",g:1,era:"mob"},
+{id:"gates",en:"Bill Gates",zh:"比尔·盖茨",org:"Microsoft 微软 / 盖茨基金会",title:"联合创始人,前CEO,全球慈善与能源/健康投资",g:1,era:"pc"},
+{id:"ballmer",en:"Steve Ballmer",zh:"史蒂夫·鲍尔默",org:"前Microsoft / LA快船队",title:"微软第二任CEO(2000-2014),NBA快船老板",g:1,era:"pc"},
+{id:"pichai",en:"Sundar Pichai",zh:"桑达尔·皮查伊",org:"Alphabet / Google 谷歌",title:"CEO,统帅搜索、安卓、云与Gemini AI",g:1,era:"mob"},
+{id:"page",en:"Larry Page",zh:"拉里·佩奇",org:"Google 谷歌",title:"联合创始人,Alphabet控股股东,半隐退",g:1,era:"web"},
+{id:"brin",en:"Sergey Brin",zh:"谢尔盖·布林",org:"Google 谷歌",title:"联合创始人,2023年起回归一线参与Gemini开发",g:1,era:"web"},
+{id:"schmidt",en:"Eric Schmidt",zh:"埃里克·施密特",org:"前Google 谷歌",title:"前CEO/执行董事长(2001-2017),AI地缘政治推手",g:1,era:"web"},
+{id:"zuck",en:"Mark Zuckerberg",zh:"马克·扎克伯格",org:"Meta",title:"创始人兼CEO,押注开源AI与超级智能实验室",g:1,era:"web"},
+{id:"sandberg",en:"Sheryl Sandberg",zh:"雪莉·桑德伯格",org:"前Meta",title:"前COO(2008-2022),《向前一步》作者",g:1,era:"web"},
+{id:"jassy",en:"Andy Jassy",zh:"安迪·贾西",org:"Amazon 亚马逊",title:"CEO,AWS创建者,贝索斯钦定接班人",g:1,era:"web"},
+{id:"bezos",en:"Jeff Bezos",zh:"杰夫·贝索斯",org:"Amazon / Blue Origin",title:"亚马逊创始人兼执行董事长,蓝色起源创始人",g:1,era:"web"},
+{id:"musk",en:"Elon Musk",zh:"埃隆·马斯克",org:"Tesla / SpaceX / xAI / X",title:"多家公司掌门人,全球首富区间常客",g:1,era:"web"},
+{id:"shotwell",en:"Gwynne Shotwell",zh:"格温·肖特韦尔",org:"SpaceX",title:"总裁兼COO,马斯克最信任的执行者(20余年)",g:1,era:"web"},
+{id:"zilis",en:"Shivon Zilis",zh:"希冯·齐里斯",org:"Neuralink",title:"运营与特别项目总监,曾任OpenAI董事",g:1,era:"mob"},
+{id:"ellison",en:"Larry Ellison",zh:"拉里·埃里森",org:"Oracle 甲骨文",title:"创始人、董事长兼CTO,借AI云与Stargate重回权力中心",g:1,era:"pc"},
+{id:"catz",en:"Safra Catz",zh:"萨弗拉·卡茨",org:"Oracle 甲骨文",title:"执行副董事长(2025年9月卸任CEO)",g:1,era:"web"},
+{id:"magouyrk",en:"Clay Magouyrk",zh:"克莱·马古伊克",org:"Oracle 甲骨文",title:"联席CEO(2025年9月上任),OCI云业务出身",g:1,era:"ai"},
+{id:"sicilia",en:"Mike Sicilia",zh:"迈克·西西利亚",org:"Oracle 甲骨文",title:"联席CEO(2025年9月上任),行业软件出身",g:1,era:"ai"},
+{id:"benioff",en:"Marc Benioff",zh:"马克·贝尼奥夫",org:"Salesforce",title:"创始人兼CEO,SaaS教父,《时代》杂志老板",g:1,era:"web"},
+{id:"dell",en:"Michael Dell",zh:"迈克尔·戴尔",org:"Dell 戴尔",title:"创始人兼CEO,AI服务器大赢家",g:1,era:"pc"},
+{id:"hastings",en:"Reed Hastings",zh:"里德·哈斯廷斯",org:"Netflix 奈飞",title:"联合创始人兼董事长,2023年卸任联席CEO",g:1,era:"web"},
+{id:"sarandos",en:"Ted Sarandos",zh:"泰德·萨兰多斯",org:"Netflix 奈飞",title:"联席CEO,内容帝国操盘手",g:1,era:"mob"},
+{id:"peters",en:"Greg Peters",zh:"格雷格·彼得斯",org:"Netflix 奈飞",title:"联席CEO,产品与广告业务操盘手",g:1,era:"mob"},
+{id:"altman",en:"Sam Altman",zh:"萨姆·奥特曼",org:"OpenAI",title:"CEO,ChatGPT之父,Stargate超级算力计划发起人",g:2,era:"ai"},
+{id:"brockman",en:"Greg Brockman",zh:"格雷格·布罗克曼",org:"OpenAI",title:"总裁兼联合创始人,奥特曼最坚定盟友",g:2,era:"ai"},
+{id:"murati",en:"Mira Murati",zh:"米拉·穆拉蒂",org:"Thinking Machines Lab",title:"创始人,前OpenAI CTO,曾两度出任临时CEO",g:2,era:"ai"},
+{id:"ilya",en:"Ilya Sutskever",zh:"伊尔亚·苏茨克维",org:"SSI 安全超级智能",title:"创始人,前OpenAI首席科学家,深度学习教父级人物",g:2,era:"ai"},
+{id:"dario",en:"Dario Amodei",zh:"达里奥·阿莫迪",org:"Anthropic",title:"CEO兼联合创始人,Claude之父,AI安全旗手",g:2,era:"ai"},
+{id:"daniela",en:"Daniela Amodei",zh:"丹妮拉·阿莫迪",org:"Anthropic",title:"总裁兼联合创始人",g:2,era:"ai"},
+{id:"demis",en:"Demis Hassabis",zh:"戴密斯·哈萨比斯",org:"Google DeepMind",title:"CEO,诺贝尔化学奖得主(AlphaFold),前国际象棋神童",g:2,era:"mob"},
+{id:"suleyman",en:"Mustafa Suleyman",zh:"穆斯塔法·苏莱曼",org:"Microsoft AI",title:"微软AI业务CEO,DeepMind与Inflection联合创始人",g:2,era:"mob"},
+{id:"hinton",en:"Geoffrey Hinton",zh:"杰弗里·辛顿",org:"多伦多大学",title:"\"AI教父\",图灵奖+诺贝尔物理奖得主,离开谷歌后警示AI风险",g:2,era:"mob"},
+{id:"lecun",en:"Yann LeCun",zh:"杨立昆",org:"Meta / 纽约大学",title:"图灵奖得主,Meta首席AI科学家,开源与世界模型旗手",g:2,era:"mob"},
+{id:"feifei",en:"Fei-Fei Li",zh:"李飞飞",org:"World Labs / 斯坦福",title:"\"AI教母\",ImageNet缔造者,空间智能创业",g:2,era:"mob"},
+{id:"ng",en:"Andrew Ng",zh:"吴恩达",org:"DeepLearning.AI / AI Fund",title:"谷歌大脑联合创始人,前百度首席科学家,AI教育第一人",g:2,era:"mob"},
+{id:"karpathy",en:"Andrej Karpathy",zh:"安德烈·卡帕西",org:"Eureka Labs",title:"OpenAI创始成员,前特斯拉AI总监",g:2,era:"mob"},
+{id:"dean",en:"Jeff Dean",zh:"杰夫·迪恩",org:"Google 谷歌",title:"首席科学家,谷歌大脑创建者,基础设施传奇",g:2,era:"web"},
+{id:"alexwang",en:"Alexandr Wang",zh:"亚历山大·王",org:"Meta / Scale AI",title:"Meta首席AI官(超级智能实验室),Scale AI创始人,90后",g:2,era:"ai"},
+{id:"aravind",en:"Aravind Srinivas",zh:"阿拉温德·斯里尼瓦斯",org:"Perplexity",title:"CEO,AI搜索挑战者,前OpenAI研究员",g:2,era:"ai"},
+{id:"mensch",en:"Arthur Mensch",zh:"亚瑟·门施",org:"Mistral AI",title:"CEO,欧洲AI旗舰创始人,前DeepMind研究员",g:2,era:"ai"},
+{id:"jensen",en:"Jensen Huang",zh:"黄仁勋",org:"NVIDIA 英伟达",title:"创始人兼CEO,AI算力之王,皮衣教主",g:3,era:"pc"},
+{id:"lisasu",en:"Lisa Su",zh:"苏姿丰",org:"AMD",title:"董事长兼CEO,十年带AMD逆天改命",g:3,era:"mob"},
+{id:"hocktan",en:"Hock Tan",zh:"陈福阳",org:"Broadcom 博通",title:"总裁兼CEO,并购之王,AI定制芯片大赢家",g:3,era:"mob"},
+{id:"amon",en:"Cristiano Amon",zh:"克里斯蒂亚诺·安蒙",org:"Qualcomm 高通",title:"总裁兼CEO,移动芯片霸主转战AI终端",g:3,era:"mob"},
+{id:"lipbutan",en:"Lip-Bu Tan",zh:"陈立武",org:"Intel 英特尔",title:"CEO(2025年3月上任),风投老将临危受命",g:3,era:"ai"},
+{id:"ccwei",en:"C.C. Wei",zh:"魏哲家",org:"TSMC 台积电",title:"董事长兼CEO,全球先进制程命脉掌门",g:3,era:"mob",w:"C. C. Wei"},
+{id:"morris",en:"Morris Chang",zh:"张忠谋",org:"TSMC 台积电",title:"创始人(已退休),代工模式发明者,\"半导体教父\"",g:3,era:"pc"},
+{id:"jaylee",en:"Jay Y. Lee",zh:"李在镕",org:"Samsung 三星电子",title:"会长,三星帝国第三代掌门",g:3,era:"mob",w:"Lee Jae-yong"},
+{id:"choi",en:"Choi Tae-won",zh:"崔泰源",org:"SK集团",title:"会长,SK海力士(HBM之王)幕后掌门",g:3,era:"web",w:"Chey Tae-won"},
+{id:"fouquet",en:"Christophe Fouquet",zh:"克里斯托夫·富凯",org:"ASML 阿斯麦",title:"CEO,全球唯一EUV光刻机供应商掌门",g:3,era:"ai"},
+{id:"youngliu",en:"Young Liu",zh:"刘扬伟",org:"Foxconn 鸿海/富士康",title:"董事长,从iPhone代工转向AI服务器之王",g:3,era:"mob"},
+{id:"gou",en:"Terry Gou",zh:"郭台铭",org:"Foxconn 鸿海",title:"创始人(已交棒),代工帝国缔造者",g:3,era:"pc"},
+{id:"ponyma",en:"Pony Ma",zh:"马化腾",org:"Tencent 腾讯",title:"创始人、董事会主席兼CEO,微信帝国掌门",g:4,era:"web",w:"Ma Huateng"},
+{id:"lau",en:"Martin Lau",zh:"刘炽平",org:"Tencent 腾讯",title:"总裁,投资版图操盘手,高盛出身",g:4,era:"web"},
+{id:"jackma",en:"Jack Ma",zh:"马云",org:"Alibaba 阿里巴巴",title:"创始人(已退休),中国互联网教父级人物,2023年后逐步公开露面",g:4,era:"web"},
+{id:"tsai",en:"Joseph Tsai",zh:"蔡崇信",org:"Alibaba 阿里巴巴",title:"董事会主席,马云最重要的搭档,布鲁克林篮网老板",g:4,era:"web"},
+{id:"eddiewu",en:"Eddie Wu",zh:"吴泳铭",org:"Alibaba 阿里巴巴",title:"CEO,十八罗汉之一,主导AI优先战略",g:4,era:"web",w:"Wu Yongming"},
+{id:"yiming",en:"Zhang Yiming",zh:"张一鸣",org:"ByteDance 字节跳动",title:"创始人(已卸任CEO),仍为最大个人股东,中国新首富区间",g:4,era:"mob"},
+{id:"rubo",en:"Liang Rubo",zh:"梁汝波",org:"ByteDance 字节跳动",title:"CEO,张一鸣大学室友与联合创始人",g:4,era:"mob"},
+{id:"chew",en:"Shou Zi Chew",zh:"周受资",org:"TikTok",title:"CEO,新加坡人,前小米CFO、DST合伙人",g:4,era:"mob"},
+{id:"leijun",en:"Lei Jun",zh:"雷军",org:"Xiaomi 小米",title:"创始人兼CEO,手机+汽车双线作战,中国科技顶流",g:4,era:"mob"},
+{id:"ren",en:"Ren Zhengfei",zh:"任正非",org:"Huawei 华为",title:"创始人兼总裁,军人出身,带华为穿越制裁",g:4,era:"pc"},
+{id:"meng",en:"Meng Wanzhou",zh:"孟晚舟",org:"Huawei 华为",title:"副董事长、轮值董事长兼CFO",g:4,era:"mob"},
+{id:"robinli",en:"Robin Li",zh:"李彦宏",org:"Baidu 百度",title:"创始人兼CEO,中国AI最早押注者之一,文心一言",g:4,era:"web"},
+{id:"wangxing",en:"Wang Xing",zh:"王兴",org:"Meituan 美团",title:"创始人兼CEO,本地生活霸主,\"无限游戏\"信徒",g:4,era:"web"},
+{id:"colinhuang",en:"Colin Huang",zh:"黄峥",org:"PDD 拼多多",title:"创始人(已退),Temu幕后,曾登顶中国首富",g:4,era:"mob"},
+{id:"liuqiangdong",en:"Richard Liu",zh:"刘强东",org:"JD 京东",title:"创始人兼董事长,2025年高调重返一线打外卖大战",g:4,era:"web",w:"Liu Qiangdong"},
+{id:"duan",en:"Duan Yongping",zh:"段永平",org:"步步高系(OPPO/vivo)",title:"幕后教父,价值投资大佬,黄峥的人生导师",g:4,era:"pc",w:"Duan Yongping"},
+{id:"kaifu",en:"Kai-Fu Lee",zh:"李开复",org:"创新工场 / 零一万物",title:"曾执掌微软中国研究院与谷歌中国,AI布道者",g:4,era:"web"},
+{id:"neilshen",en:"Neil Shen",zh:"沈南鹏",org:"HongShan 红杉中国",title:"创始及执行合伙人,投出字节/美团/拼多多的\"中国风投之王\"",g:4,era:"web"},
+{id:"liangwf",en:"Liang Wenfeng",zh:"梁文锋",org:"DeepSeek 深度求索",title:"创始人,幻方量化出身,2025年初以R1震动全球AI格局",g:4,era:"ai"},
+{id:"thiel",en:"Peter Thiel",zh:"彼得·蒂尔",org:"Founders Fund / Palantir",title:"PayPal黑帮教父,硅谷右翼思想领袖",g:5,era:"web"},
+{id:"a16z",en:"Marc Andreessen",zh:"马克·安德森",org:"a16z",title:"网景之父,顶级风投合伙人,\"技术乐观主义宣言\"作者",g:5,era:"web",w:"Marc Andreessen"},
+{id:"horowitz",en:"Ben Horowitz",zh:"本·霍洛维茨",org:"a16z",title:"联合创始人,《创业维艰》作者",g:5,era:"web"},
+{id:"hoffman",en:"Reid Hoffman",zh:"里德·霍夫曼",org:"Greylock / LinkedIn",title:"LinkedIn创始人,硅谷人脉之王,微软董事",g:5,era:"web"},
+{id:"khosla",en:"Vinod Khosla",zh:"维诺德·科斯拉",org:"Khosla Ventures",title:"太阳微系统联合创始人,OpenAI首个VC投资人",g:5,era:"pc"},
+{id:"botha",en:"Roelof Botha",zh:"鲁洛夫·博塔",org:"Sequoia 红杉资本",title:"全球执行合伙人,前PayPal CFO",g:5,era:"web"},
+{id:"pg",en:"Paul Graham",zh:"保罗·格雷厄姆",org:"Y Combinator",title:"YC联合创始人,硅谷创业教父,黑客与画家",g:5,era:"web"},
+{id:"garrytan",en:"Garry Tan",zh:"加里·谭",org:"Y Combinator",title:"总裁兼CEO,Initialized创始人,Coinbase早期投资人",g:5,era:"mob"},
+{id:"levchin",en:"Max Levchin",zh:"马克斯·列夫琴",org:"Affirm",title:"CEO,PayPal联合创始人兼首任CTO",g:5,era:"web"},
+{id:"sacks",en:"David Sacks",zh:"大卫·萨克斯",org:"白宫 / Craft Ventures",title:"白宫AI与加密货币事务沙皇,前PayPal COO,All-In播客主理人",g:5,era:"web"},
+{id:"son",en:"Masayoshi Son",zh:"孙正义",org:"SoftBank 软银",title:"会长兼社长,ARM控股人,豪赌AI与Stargate",g:5,era:"pc"},
+{id:"milner",en:"Yuri Milner",zh:"尤里·米尔纳",org:"DST Global",title:"传奇投资人,押中Facebook/阿里/京东/小米,突破奖发起人",g:5,era:"web"},
+{id:"melinda",en:"Melinda French Gates",zh:"梅琳达·弗伦奇·盖茨",org:"Pivotal Ventures",title:"创始人,前盖茨基金会联席主席",g:5,era:"pc"},
+{id:"dorsey",en:"Jack Dorsey",zh:"杰克·多西",org:"Block",title:"Twitter与Block创始人,比特币原教旨主义者",g:6,era:"web"},
+{id:"chesky",en:"Brian Chesky",zh:"布莱恩·切斯基",org:"Airbnb 爱彼迎",title:"联合创始人兼CEO,设计师出身",g:6,era:"mob"},
+{id:"dara",en:"Dara Khosrowshahi",zh:"达拉·科斯罗萨西",org:"Uber 优步",title:"CEO,临危受命扭转优步",g:6,era:"mob"},
+{id:"ek",en:"Daniel Ek",zh:"丹尼尔·埃克",org:"Spotify",title:"创始人兼CEO,欧洲科技旗帜,跨界国防投资",g:6,era:"mob"},
+{id:"spiegel",en:"Evan Spiegel",zh:"埃文·斯皮格尔",org:"Snap",title:"联合创始人兼CEO,拒绝扎克伯格收购的人",g:6,era:"mob"},
+{id:"tobi",en:"Tobi Lütke",zh:"托比·吕特克",org:"Shopify",title:"创始人兼CEO,程序员出身的电商基建之王",g:6,era:"web"},
+{id:"patrick",en:"Patrick Collison",zh:"帕特里克·科里森",org:"Stripe",title:"联合创始人兼CEO,爱尔兰天才兄弟档",g:6,era:"mob"},
+{id:"johnc",en:"John Collison",zh:"约翰·科里森",org:"Stripe",title:"联合创始人兼总裁",g:6,era:"mob"},
+{id:"armstrong",en:"Brian Armstrong",zh:"布莱恩·阿姆斯特朗",org:"Coinbase",title:"联合创始人兼CEO,合规加密交易所之王",g:6,era:"mob"},
+{id:"karp",en:"Alex Karp",zh:"亚历克斯·卡普",org:"Palantir",title:"联合创始人兼CEO,国防AI巨头,哲学博士",g:6,era:"web"},
+{id:"luckey",en:"Palmer Luckey",zh:"帕尔默·拉奇",org:"Anduril",title:"创始人,Oculus之父,国防科技新贵",g:6,era:"mob"},
+{id:"ambani",en:"Mukesh Ambani",zh:"穆克什·安巴尼",org:"Reliance / Jio",title:"董事长,亚洲首富,印度数字帝国掌门",g:6,era:"mob"},
+{id:"pachocki",en:"Jakub Pachocki",zh:"雅库布·帕霍茨基",org:"OpenAI",title:"首席科学家,苏茨克维出走后的技术掌舵人",g:2,era:"ai"},
+{id:"kaplan",en:"Jared Kaplan",zh:"贾里德·卡普兰",org:"Anthropic",title:"联合创始人兼首席科学官,Scaling Laws奠基者之一",g:2,era:"ai"},
+{id:"shazeer",en:"Noam Shazeer",zh:"诺姆·沙泽尔",org:"Google DeepMind",title:"Gemini联合技术主管,Transformer作者,Character.AI创始人",g:2,era:"ai"},
+{id:"shear",en:"Emmett Shear",zh:"埃米特·希尔",org:"前OpenAI / Twitch",title:"OpenAI政变中的'72小时临时CEO',Twitch联合创始人",g:2,era:"web"},
+{id:"delangue",en:"Clem Delangue",zh:"克莱门特·德朗格",org:"Hugging Face",title:"CEO,开源AI社区盟主",g:2,era:"ai",w:"Clément Delangue"},
+{id:"gross",en:"Daniel Gross",zh:"丹尼尔·格罗斯",org:"Meta / 前SSI",title:"SSI联合创始人,2025年被扎克伯格挖入超级智能团队",g:2,era:"ai"},
+{id:"natfriedman",en:"Nat Friedman",zh:"纳特·弗里德曼",org:"Meta / 前GitHub",title:"前GitHub CEO,顶级AI投资人,2025年加盟Meta",g:2,era:"mob"},
+{id:"gomez",en:"Aidan Gomez",zh:"艾丹·戈麦斯",org:"Cohere",title:"CEO,Transformer论文作者中最年轻的一位",g:2,era:"ai"},
+{id:"krieger",en:"Mike Krieger",zh:"迈克·克里格",org:"Anthropic",title:"首席产品官,Instagram联合创始人",g:2,era:"mob"},
+{id:"intrator",en:"Michael Intrator",zh:"迈克尔·英特拉托",org:"CoreWeave",title:"CEO,从加密挖矿转身为AI算力新贵",g:2,era:"ai"},
+{id:"brettaylor",en:"Bret Taylor",zh:"布雷特·泰勒",org:"OpenAI / Sierra",title:"OpenAI董事长,Sierra创始人,前Salesforce联席CEO",g:2,era:"web"},
+{id:"garman",en:"Matt Garman",zh:"马特·加曼",org:"AWS",title:"CEO,贾西的AWS嫡系接棒人",g:1,era:"mob"},
+{id:"kevinscott",en:"Kevin Scott",zh:"凯文·斯科特",org:"Microsoft 微软",title:"CTO,微软-OpenAI联盟的总设计师",g:1,era:"mob",w:"Kevin Scott (computer scientist)"},
+{id:"kurian",en:"Thomas Kurian",zh:"托马斯·库里安",org:"Google Cloud",title:"谷歌云CEO,前甲骨文产品总裁",g:1,era:"web"},
+{id:"federighi",en:"Craig Federighi",zh:"克雷格·费德里吉",org:"Apple 苹果",title:"软件工程高级副总裁,发布会人气王'Hair Force One'",g:1,era:"mob"},
+{id:"fadell",en:"Tony Fadell",zh:"托尼·法德尔",org:"Build Collective",title:"'iPod之父',Nest创始人",g:1,era:"web"},
+{id:"gelsinger",en:"Pat Gelsinger",zh:"帕特·基辛格",org:"前Intel 英特尔",title:"前CEO(2021-2024),IDM 2.0豪赌未竟离场",g:3,era:"pc"},
+{id:"renehaas",en:"Rene Haas",zh:"雷内·哈斯",org:"Arm",title:"CEO,软银旗下芯片IP帝国掌门",g:3,era:"mob"},
+{id:"jimkeller",en:"Jim Keller",zh:"吉姆·凯勒",org:"Tenstorrent",title:"CEO,传奇芯片架构师(Zen/A4/特斯拉FSD之父)",g:3,era:"web",w:"Jim Keller (engineer)"},
+{id:"wangchuanfu",en:"Wang Chuanfu",zh:"王传福",org:"BYD 比亚迪",title:"董事长,电池起家的全球电动车销量之王",g:4,era:"web"},
+{id:"zengyuqun",en:"Robin Zeng",zh:"曾毓群",org:"CATL 宁德时代",title:"董事长,'宁王',全球动力电池霸主,赌性坚强",g:4,era:"mob"},
+{id:"hexiaopeng",en:"He Xiaopeng",zh:"何小鹏",org:"XPeng 小鹏汽车",title:"董事长兼CEO,UC浏览器创始人二次创业",g:4,era:"mob"},
+{id:"libin",en:"Li Bin",zh:"李斌",org:"NIO 蔚来",title:"创始人兼CEO,'出行教父',从最惨的人到杀回牌桌",g:4,era:"mob",w:"William Li (entrepreneur)"},
+{id:"lixiang",en:"Li Xiang",zh:"李想",org:"Li Auto 理想汽车",title:"创始人兼CEO,80后连续创业者(泡泡网/汽车之家)",g:4,era:"mob",w:"Li Xiang (entrepreneur)"},
+{id:"wangtao",en:"Frank Wang",zh:"汪滔",org:"DJI 大疆",title:"创始人,无人机之王,极少露面的技术偏执狂",g:4,era:"mob",w:"Frank Wang"},
+{id:"wanghuiwen",en:"Wang Huiwen",zh:"王慧文",org:"美团(退休)",title:"美团联合创始人,王兴清华室友,曾短暂创业AI'光年之外'",g:4,era:"web",w:"Wang Huiwen"},
+{id:"suhua",en:"Su Hua",zh:"宿华",org:"Kuaishou 快手",title:"联合创始人兼董事长,短视频第二极",g:4,era:"mob",w:"Su Hua"},
+{id:"yangzhilin",en:"Yang Zhilin",zh:"杨植麟",org:"Moonshot 月之暗面",title:"创始人,Kimi之父,90后清华系AI明星",g:4,era:"ai"},
+{id:"wangjian",en:"Wang Jian",zh:"王坚",org:"Alibaba 阿里云",title:"阿里云创始人,中国工程院院士,'飞天'操盘手",g:4,era:"mob",w:"Wang Jian (computer scientist)"},
+{id:"chengwei",en:"Cheng Wei",zh:"程维",org:"DiDi 滴滴",title:"创始人兼CEO,支付宝出身,赢下网约车百团大战",g:4,era:"mob",w:"Cheng Wei (entrepreneur)"},
+{id:"qilu",en:"Qi Lu",zh:"陆奇",org:"奇绩创坛",title:"创始人,曾任微软全球执行副总裁、百度COO,华人职业经理人天花板",g:4,era:"web",w:"Qi Lu (computer scientist)"},
+{id:"laurene",en:"Laurene Powell Jobs",zh:"劳伦娜·鲍威尔·乔布斯",org:"Emerson Collective",title:"创始人,乔布斯遗孀,媒体与公益投资人",g:5,era:"web"},
+{id:"seanparker",en:"Sean Parker",zh:"肖恩·帕克",org:"Parker基金会",title:"Napster创始人,Facebook首任总裁",g:5,era:"web"},
+{id:"saverin",en:"Eduardo Saverin",zh:"爱德华多·萨维林",org:"B Capital",title:"Facebook联合创始人,《社交网络》原型,现居新加坡做风投",g:5,era:"web"},
+{id:"dangelo",en:"Adam D'Angelo",zh:"亚当·德安杰洛",org:"Quora / OpenAI董事",title:"Quora创始人,Facebook首任CTO,OpenAI政变中唯一留任的董事",g:6,era:"web",w:"Adam D'Angelo"},
+{id:"ericyuan",en:"Eric Yuan",zh:"袁征",org:"Zoom",title:"创始人兼CEO,8次签证被拒仍赴美的视频会议之王",g:6,era:"mob"},
+{id:"annewojcicki",en:"Anne Wojcicki",zh:"安妮·沃西基",org:"23andMe",title:"联合创始人,基因检测先驱,布林前妻",g:6,era:"web"},
+{id:"sweeney",en:"Tim Sweeney",zh:"蒂姆·斯维尼",org:"Epic Games",title:"创始人兼CEO,《堡垒之夜》之父,'苹果税'头号死敌",g:6,era:"pc"},
+{id:"cz",en:"Changpeng Zhao (CZ)",zh:"赵长鹏",org:"Binance 币安",title:"创始人,全球最大加密交易所缔造者",g:6,era:"mob",w:"Changpeng Zhao"},
+{id:"vitalik",en:"Vitalik Buterin",zh:"维塔利克·布特林",org:"Ethereum 以太坊",title:"联合创始人,'V神',区块链世界精神领袖",g:6,era:"mob"},
+{id:"durov",en:"Pavel Durov",zh:"帕维尔·杜罗夫",org:"Telegram",title:"创始人,'俄罗斯扎克伯格',绝对言论自由主义者",g:6,era:"mob"},
+{id:"neumann",en:"Adam Neumann",zh:"亚当·诺伊曼",org:"Flow / 前WeWork",title:"WeWork创始人,470亿美元估值神话的主角与崩塌者",g:6,era:"mob"},
+{id:"kalanick",en:"Travis Kalanick",zh:"特拉维斯·卡兰尼克",org:"CloudKitchens",title:"Uber创始人,2017年被董事会罢免后再创业",g:6,era:"mob"},
+{id:"moskovitz",en:"Dustin Moskovitz",zh:"达斯廷·莫斯科维茨",org:"Asana",title:"Facebook联合创始人,有效利他主义最大金主",g:6,era:"web"},
+{id:"systrom",en:"Kevin Systrom",zh:"凯文·斯特罗姆",org:"Instagram联合创始人",title:"把IG以10亿美元卖给Facebook,后愤而出走",g:6,era:"mob"},
+{id:"koum",en:"Jan Koum",zh:"简·库姆",org:"WhatsApp联合创始人",title:"乌克兰移民逆袭,190亿美元卖身后因隐私理念出走",g:6,era:"mob"},
+{id:"barra",en:"Hugo Barra",zh:"雨果·巴拉",org:"前小米/Meta",title:"横跨谷歌、小米、Meta的国际化操盘手",g:6,era:"mob"},
+{id:"chandra",en:"N. Chandrasekaran",zh:"钱德拉塞卡兰",org:"Tata 塔塔集团",title:"董事长,印度老牌财团的数字化掌舵人",g:6,era:"mob"},
+{id:"dylanfield",en:"Dylan Field",zh:"迪伦·菲尔德",org:"Figma",title:"联合创始人兼CEO,蒂尔奖学金辍学生,设计工具之王",g:6,era:"mob"},
+{id:"rockefeller",en:"John D. Rockefeller",zh:"约翰·D·洛克菲勒",org:"Standard Oil 标准石油",title:"史上首位亿万富翁,石油垄断帝国缔造者(1839-1937)",g:7,era:"ind"},
+{id:"carnegie",en:"Andrew Carnegie",zh:"安德鲁·卡内基",org:"Carnegie Steel 卡内基钢铁",title:"钢铁大王,'拥巨富而死是一种耻辱'(1835-1919)",g:7,era:"ind"},
+{id:"jpmorgan",en:"J.P. Morgan",zh:"约翰·皮尔庞特·摩根",org:"J.P. Morgan & Co.",title:"金融之王,两度以一己之力救市的'美国央行'(1837-1913)",g:7,era:"ind",w:"J. P. Morgan"},
+{id:"ford",en:"Henry Ford",zh:"亨利·福特",org:"Ford 福特汽车",title:"流水线之父,让汽车走入千家万户(1863-1947)",g:7,era:"ind"},
+{id:"edison",en:"Thomas Edison",zh:"托马斯·爱迪生",org:"爱迪生电气(GE前身)",title:"发明大王,1093项专利,GE奠基人(1847-1931)",g:7,era:"ind"},
+{id:"nikolatesla",en:"Nikola Tesla",zh:"尼古拉·特斯拉",org:"交流电系统",title:"交流电之父,被时代亏待的天才发明家(1856-1943)",g:7,era:"ind"},
+{id:"westinghouse",en:"George Westinghouse",zh:"乔治·西屋",org:"Westinghouse 西屋电气",title:"交流电商业化推手,爱迪生的死敌(1846-1914)",g:7,era:"ind"},
+{id:"watsonsr",en:"Thomas Watson Sr.",zh:"老托马斯·沃森",org:"IBM",title:"把IBM做成商业机器帝国,'THINK'缔造者(1874-1956)",g:7,era:"ind",w:"Thomas J. Watson"},
+{id:"watsonjr",en:"Thomas Watson Jr.",zh:"小托马斯·沃森",org:"IBM",title:"豪赌System/360,大型机黄金时代统帅(1914-1993)",g:7,era:"elec",w:"Thomas Watson Jr."},
+{id:"shockley",en:"William Shockley",zh:"威廉·肖克利",org:"肖克利半导体",title:"晶体管之父,诺奖得主,把硅带到硅谷却众叛亲离(1910-1989)",g:7,era:"elec"},
+{id:"noyce",en:"Robert Noyce",zh:"罗伯特·诺伊斯",org:"Fairchild / Intel",title:"集成电路发明人之一,'硅谷市长','八叛徒'之首(1927-1990)",g:7,era:"elec"},
+{id:"moore",en:"Gordon Moore",zh:"戈登·摩尔",org:"Fairchild / Intel",title:"摩尔定律提出者,英特尔联合创始人(1929-2023)",g:7,era:"elec"},
+{id:"grove",en:"Andy Grove",zh:"安迪·格鲁夫",org:"Intel 英特尔",title:"'只有偏执狂才能生存',英特尔传奇CEO(1936-2016)",g:7,era:"pc",w:"Andrew Grove"},
+{id:"arthurrock",en:"Arthur Rock",zh:"阿瑟·洛克",org:"风险投资先驱",title:"让'风险投资'成为行业的人,仙童/英特尔/苹果金主",g:7,era:"elec"},
+{id:"valentine",en:"Don Valentine",zh:"唐·瓦伦丁",org:"Sequoia 红杉创始人",title:"投出苹果/思科/Atari,'投赛道'哲学开创者(1932-2019)",g:7,era:"pc"},
+{id:"hewlett",en:"Bill Hewlett",zh:"比尔·休利特",org:"HP 惠普",title:"车库创业鼻祖,硅谷精神源头(1913-2001)",g:7,era:"elec"},
+{id:"packard",en:"David Packard",zh:"戴维·帕卡德",org:"HP 惠普",title:"'惠普之道'缔造者(1912-1996)",g:7,era:"elec"},
+{id:"wangan",en:"An Wang",zh:"王安",org:"王安电脑",title:"华人计算机先驱,曾跻身美国富豪前五,帝国一代而衰(1920-1990)",g:7,era:"elec"},
+{id:"morita",en:"Akio Morita",zh:"盛田昭夫",org:"Sony 索尼",title:"Walkman之父,战后日本制造的世界名片(1921-1999)",g:7,era:"elec"},
+{id:"ibuka",en:"Masaru Ibuka",zh:"井深大",org:"Sony 索尼",title:"索尼技术灵魂,与盛田昭夫双剑合璧(1908-1997)",g:7,era:"elec"},
+{id:"matsushita",en:"Konosuke Matsushita",zh:"松下幸之助",org:"Panasonic 松下",title:"'经营之神',日式经营哲学开山者(1894-1989)",g:7,era:"ind"},
+{id:"inamori",en:"Kazuo Inamori",zh:"稻盛和夫",org:"京瓷 / KDDI",title:"'经营之圣',阿米巴经营,78岁出山救日航(1932-2022)",g:7,era:"elec"},
+{id:"jobs",en:"Steve Jobs",zh:"史蒂夫·乔布斯",org:"Apple 苹果",title:"被赶出又王者归来,重新定义四个行业(1955-2011)",g:7,era:"pc"},
+{id:"allen",en:"Paul Allen",zh:"保罗·艾伦",org:"Microsoft 微软",title:"微软联合创始人,说服盖茨辍学的人(1953-2018)",g:7,era:"pc"},
+{id:"munger",en:"Charlie Munger",zh:"查理·芒格",org:"Berkshire 伯克希尔",title:"巴菲特一生的搭档,'用合理价格买伟大公司'(1924-2023)",g:7,era:"elec"},
+{id:"woz",en:"Steve Wozniak",zh:"史蒂夫·沃兹尼亚克",org:"Apple 苹果",title:"Apple I/II缔造者,纯粹的工程师之魂",g:1,era:"pc"},
+{id:"sculley",en:"John Sculley",zh:"约翰·斯卡利",org:"前Apple 苹果",title:"'卖糖水的'百事总裁,赶走乔布斯的CEO",g:1,era:"pc"},
+{id:"buffett",en:"Warren Buffett",zh:"沃伦·巴菲特",org:"Berkshire 伯克希尔",title:"股神,2026年初交棒CEO;伯克希尔为苹果重要股东",g:5,era:"elec"},
+{id:"liuchuanzhi",en:"Liu Chuanzhi",zh:"柳传志",org:"Lenovo 联想",title:"中国企业家教父,40岁中关村起家吞下IBM PC",g:4,era:"pc"},
+{id:"yangyuanqing",en:"Yang Yuanqing",zh:"杨元庆",org:"Lenovo 联想",title:"柳传志接班人,执掌全球PC霸主",g:4,era:"web"},
+{id:"stanshih",en:"Stan Shih",zh:"施振荣",org:"Acer 宏碁",title:"台湾PC教父,'微笑曲线'理论提出者",g:3,era:"pc"},
+{id:"dinglei",en:"William Ding",zh:"丁磊",org:"NetEase 网易",title:"三大门户唯一仍掌舵的创始人,游戏与养猪双修",g:4,era:"web",w:"Ding Lei"},
+{id:"zhangchaoyang",en:"Charles Zhang",zh:"张朝阳",org:"Sohu 搜狐",title:"中国互联网启蒙者,门户时代旗手,如今直播讲物理",g:4,era:"web"},
+{id:"zhouhongyi",en:"Zhou Hongyi",zh:"周鸿祎",org:"360",title:"'红衣大炮',中国互联网战争史活化石",g:4,era:"web"},
+{id:"chentianqiao",en:"Chen Tianqiao",zh:"陈天桥",org:"盛大 / 天桥脑科学",title:"曾以网游登顶中国首富,激流勇退投身脑科学",g:4,era:"web"},
+{id:"jerryyang",en:"Jerry Yang",zh:"杨致远",org:"Yahoo / AME Cloud",title:"雅虎联合创始人,投出阿里巴巴的世纪一笔",g:5,era:"web"},
+{id:"jimclark",en:"Jim Clark",zh:"吉姆·克拉克",org:"Netscape 网景",title:"SGI与网景创始人,带安德森开启互联网时代",g:5,era:"web",w:"James H. Clark"},
+{id:"xuxin",en:"Kathy Xu",zh:"徐新",org:"今日资本",title:"'风投女王',网易与京东背后的伯乐",g:5,era:"web"},
+{id:"zhanglei",en:"Lei Zhang",zh:"张磊",org:"Hillhouse 高瓴资本",title:"'重仓中国',腾讯/京东/宁德背后的超级资本",g:5,era:"web",w:"Zhang Lei (investor)"}
+];
+const RELATIONS=[
+{s:"musk",t:"altman",k:"feud",d:"2015年共同创立OpenAI,2018年马斯克出走;此后反目成仇:马斯克多次起诉OpenAI转营利,创办xAI正面开战,在X上互相讥讽,2025年还试图以974亿美元'恶意报价'收购OpenAI"},
+{s:"altman",t:"brockman",k:"cofounder",d:"OpenAI联合创始人,布罗克曼任总裁;2023年董事会政变中与奥特曼共进退,一同'被解雇'又一同回归"},
+{s:"altman",t:"ilya",k:"feud",d:"曾是并肩的联合创始人;2023年11月苏茨克维参与董事会罢免奥特曼,数日后又公开反悔签名请愿;2024年离开OpenAI创办SSI,关系破裂"},
+{s:"altman",t:"murati",k:"work",d:"穆拉蒂曾任OpenAI CTO,是奥特曼的核心副手,政变期间两度出任临时CEO;2024年离职创办Thinking Machines,带走多名核心研究员"},
+{s:"murati",t:"ilya",k:"work",d:"OpenAI政变期间的微妙同盟:均对奥特曼有过保留意见,先后离开各自创业"},
+{s:"altman",t:"dario",k:"rival",d:"阿莫迪曾任OpenAI研究副总裁,2020年因安全理念与商业化分歧率队出走创办Anthropic,如今是大模型市场最直接的对手"},
+{s:"dario",t:"daniela",k:"family",d:"亲兄妹,Anthropic联合创始人:哥哥任CEO、妹妹任总裁,硅谷最著名的兄妹搭档"},
+{s:"daniela",t:"altman",k:"work",d:"曾任OpenAI安全与政策副总裁,2020年随兄长达里奥出走创办Anthropic"},
+{s:"altman",t:"nadella",k:"ally",d:"AI时代最重要的联盟:微软向OpenAI累计投入超130亿美元;2023年政变之夜纳德拉公开力挺并开价'全员来微软',助奥特曼翻盘"},
+{s:"musk",t:"nadella",k:"feud",d:"马斯克起诉OpenAI时将微软列为共同被告,指其'非法垄断AI';两人台面上仍保持商业礼貌"},
+{s:"altman",t:"khosla",k:"invest",d:"科斯拉是OpenAI第一个风险投资人(2019年投5000万美元),公开称其为'本世纪最重要投资'"},
+{s:"altman",t:"hoffman",k:"work",d:"霍夫曼曾任OpenAI董事(2019-2023),因创办Inflection存在利益冲突退出;此后对奥特曼立场转向批评"},
+{s:"altman",t:"thiel",k:"mentor",d:"蒂尔是奥特曼早年的思想导师与金主:投资其首个创业项目Loopt和Hydrazine基金,也是OpenAI早期捐赠人;近年关系微妙疏远"},
+{s:"altman",t:"pg",k:"mentor",d:"格雷厄姆2005年录取19岁的奥特曼进YC首批,2014年钦点他执掌YC;2019年又被曝亲自飞到旧金山将其'请离'YC,师徒情分复杂"},
+{s:"altman",t:"garrytan",k:"work",d:"YC前后任掌门:奥特曼2014-2019任总裁,谭2023年接掌;公开场合互相力挺"},
+{s:"altman",t:"chesky",k:"friend",d:"密友。2023年奥特曼被罢免的周末,切斯基是他身边最重要的'参谋'之一,全程出谋划策"},
+{s:"altman",t:"son",k:"ally",d:"Stargate计划共同发起人:软银承诺牵头数千亿美元为OpenAI建AI数据中心,孙正义称奥特曼是'这个时代的关键人物'"},
+{s:"altman",t:"ellison",k:"ally",d:"Stargate三巨头之二:甲骨文为OpenAI建超大规模数据中心,签下史上最大云合同之一(报道称5年3000亿美元级)"},
+{s:"altman",t:"jensen",k:"ally",d:"算力命脉关系:OpenAI是英伟达最重要客户之一,2025年英伟达宣布拟向OpenAI投资高达1000亿美元共建10吉瓦数据中心"},
+{s:"altman",t:"hocktan",k:"ally",d:"OpenAI与博通合作设计自研AI芯片(2026年量产),减少对英伟达依赖"},
+{s:"altman",t:"ccwei",k:"ally",d:"OpenAI自研芯片采用台积电3nm工艺;奥特曼多次赴台密会魏哲家谈产能,早年'7万亿美元建36座晶圆厂'设想曾被台积电高管私下笑称'播客兄'"},
+{s:"altman",t:"ive",k:"cofounder",d:"2025年OpenAI以约65亿美元收购艾维的硬件公司io,两人联手打造'后iPhone时代'AI硬件,被称为本世代最受瞩目的设计联姻"},
+{s:"altman",t:"zuck",k:"rival",d:"AI人才战争主角:Meta以上亿美元薪酬包挖角OpenAI研究员,奥特曼公开嘲讽'雇佣兵文化';双方在开源/闭源路线上针锋相对"},
+{s:"altman",t:"demis",k:"rival",d:"AGI竞赛两大门面:OpenAI与Google DeepMind在模型、人才、算力上全面对抗,台面上保持学者式客气"},
+{s:"altman",t:"aravind",k:"rival",d:"斯里尼瓦斯曾是OpenAI研究员,出走创办Perplexity做AI搜索;ChatGPT搜索功能上线后两家正面交锋"},
+{s:"altman",t:"liangwf",k:"rival",d:"2025年初DeepSeek R1以极低成本逼近OpenAI o1性能,引发硅谷震动;奥特曼罕见回应'复制容易,创新难',随后加速降价开放"},
+{s:"altman",t:"choi",k:"ally",d:"2025年奥特曼访韩与崔泰源会谈,SK海力士为OpenAI供应HBM并合作建数据中心"},
+{s:"altman",t:"youngliu",k:"ally",d:"2025年奥特曼密会富士康洽谈AI服务器与硬件代工合作"},
+{s:"altman",t:"sacks",k:"rival",d:"萨克斯任白宫AI沙皇后多次批评OpenAI的非营利转制与监管游说,二人在政策场合多有交锋"},
+{s:"altman",t:"gates",k:"ally",d:"盖茨是GPT-4最早的'考官'之一(著名的AP生物学测试晚宴),多次同台对谈,称ChatGPT是'1980年GUI以来最革命性的技术'"},
+{s:"altman",t:"hinton",k:"feud",d:"辛顿公开批评奥特曼将利润置于安全之上,曾说'我为我的学生(苏茨克维)解雇他而骄傲'"},
+{s:"ilya",t:"hinton",k:"mentor",d:"辛顿的博士弟子,2012年师徒与Krizhevsky共同发表AlexNet,点燃深度学习革命;辛顿始终力挺这位最得意门生"},
+{s:"ilya",t:"zuck",k:"rival",d:"2025年扎克伯格曾试图以320亿美元收购SSI被拒,转而挖角其联合创始人"},
+{s:"murati",t:"zuck",k:"rival",d:"Meta曾向Thinking Machines团队开出上亿美元薪酬挖角,穆拉蒂团队几乎无人跳槽,成为AI圈话题"},
+{s:"brockman",t:"musk",k:"work",d:"OpenAI创立时的'三人核心'之一,曾共同招兵买马;马斯克出走后分道扬镳"},
+{s:"ilya",t:"musk",k:"work",d:"2015年马斯克亲自参与从谷歌挖来苏茨克维(惹恼佩奇);马斯克称这是'OpenAI成败的关键一招'"},
+{s:"karpathy",t:"musk",k:"work",d:"2017-2022年任特斯拉AI总监,主导Autopilot视觉方案,是马斯克亲自从OpenAI挖走的爱将"},
+{s:"karpathy",t:"altman",k:"work",d:"OpenAI创始成员,两度效力(2015-2017, 2023-2024),现独立创办AI教育公司Eureka Labs"},
+{s:"karpathy",t:"feifei",k:"mentor",d:"李飞飞的斯坦福博士弟子,ImageNet时代培养出的明星研究者"},
+{s:"karpathy",t:"ilya",k:"work",d:"OpenAI早期同事,深度学习圈互相敬重的同门"},
+{s:"feifei",t:"jensen",k:"ally",d:"老友;英伟达参投李飞飞的World Labs(估值超10亿美元),黄仁勋多次公开称她是'AI界真正的先驱'"},
+{s:"feifei",t:"pichai",k:"work",d:"2017-2018年任谷歌云首席AI科学家,主导Cloud AI产品化"},
+{s:"feifei",t:"ng",k:"work",d:"斯坦福AI实验室前后任主任,多年同事"},
+{s:"ng",t:"dean",k:"cofounder",d:"2011年共同创建谷歌大脑(Google Brain),开启谷歌深度学习时代"},
+{s:"ng",t:"robinli",k:"work",d:"2014-2017年任百度首席科学家,直接向李彦宏汇报,主导百度大脑与自动驾驶早期布局"},
+{s:"hinton",t:"lecun",k:"mentor",d:"杨立昆曾是辛顿的博士后(1987-1988),2018年师徒与Bengio共获图灵奖,并称'深度学习三巨头'"},
+{s:"hinton",t:"dean",k:"work",d:"2013年谷歌收购辛顿的DNNresearch,辛顿加入谷歌大脑与迪恩共事十年,2023年为'自由谈论AI风险'辞职"},
+{s:"lecun",t:"zuck",k:"work",d:"2013年扎克伯格亲自招募杨立昆创建Meta AI研究院(FAIR),奠定Meta的AI学术根基;近年杨立昆对LLM路线的公开唱衰令关系微妙"},
+{s:"lecun",t:"altman",k:"rival",d:"在X上长期互呛:杨立昆称LLM是'死路',讥讽OpenAI炒作AGI;OpenAI阵营则回敬其'预测全错'"},
+{s:"lecun",t:"musk",k:"feud",d:"X上著名互怼:马斯克招聘xAI时杨立昆嘲讽'加入一个老板天天发阴谋论的公司?',马斯克回击其'软弱',骂战数轮"},
+{s:"demis",t:"suleyman",k:"cofounder",d:"2010年共同创立DeepMind(还有Shane Legg);苏莱曼2019年因管理风格争议被边缘化后离开,如今分属谷歌、微软两大阵营对垒"},
+{s:"demis",t:"page",k:"work",d:"2014年佩奇力主谷歌以6亿美元收购DeepMind,并承诺设立AI伦理委员会;哈萨比斯称佩奇是'最懂AI的CEO'"},
+{s:"demis",t:"pichai",k:"work",d:"皮查伊将谷歌大脑与DeepMind合并为Google DeepMind,哈萨比斯统领Gemini,成为谷歌AI反击战的统帅"},
+{s:"demis",t:"musk",k:"work",d:"马斯克是DeepMind早期投资人,自称投资是'为了盯着AI进展';两人曾在SpaceX工厂长谈AI风险,后渐行渐远"},
+{s:"demis",t:"dario",k:"ally",d:"AGI竞赛对手中难得的'安全同道':同为忧虑派,曾共同签署AI风险公开信,私下保持学者式尊重"},
+{s:"dean",t:"demis",k:"work",d:"谷歌大脑与DeepMind合并后,迪恩转任首席科学家,把一线统帅位让给哈萨比斯,被视为体面的权力交接"},
+{s:"dean",t:"pichai",k:"work",d:"谷歌技术体系定海神针,直接向皮查伊汇报"},
+{s:"suleyman",t:"nadella",k:"work",d:"2024年纳德拉'准收购'Inflection团队,聘苏莱曼执掌Microsoft AI,统管Copilot,被视为微软对冲OpenAI依赖的关键落子"},
+{s:"suleyman",t:"hoffman",k:"cofounder",d:"2022年共同创立Inflection AI,霍夫曼任董事长;团队后被微软整体'收编'"},
+{s:"mensch",t:"demis",k:"work",d:"门施曾是DeepMind巴黎团队研究员,参与Chinchilla等工作,后创办Mistral AI扛起'欧洲主权AI'大旗"},
+{s:"alexwang",t:"zuck",k:"work",d:"2025年Meta以143亿美元入股Scale AI并把28岁的汪韬(Alexandr Wang)请来执掌超级智能实验室,成为硅谷最年轻的'首席AI官'"},
+{s:"alexwang",t:"altman",k:"friend",d:"私交甚好,奥特曼曾让创业初期的他借住自己家;如今分属对垒阵营,友谊接受考验"},
+{s:"alexwang",t:"garrytan",k:"work",d:"Scale AI是YC 2016届孵化项目,YC系明星案例"},
+{s:"aravind",t:"jensen",k:"invest",d:"英伟达参投Perplexity多轮,黄仁勋是其公开'头号粉丝',自称每天都用Perplexity"},
+{s:"aravind",t:"bezos",k:"invest",d:"贝索斯个人参投Perplexity,被视为'用AI重做一遍谷歌'的押注"},
+{s:"liangwf",t:"jensen",k:"rival",d:"2025年1月DeepSeek低成本模型引发'英伟达单日蒸发约6000亿美元市值'的历史性恐慌;黄仁勋事后多次称赞DeepSeek是'了不起的创新'"},
+{s:"liangwf",t:"kaifu",k:"rival",d:"中国大模型同业:李开复的零一万物转向应用,公开称DeepSeek证明了'中国AI的斯普特尼克时刻'"},
+{s:"liangwf",t:"yiming",k:"rival",d:"中国大模型双雄之争:字节豆包与DeepSeek在人才、算力、用户上全面竞赛"},
+{s:"nadella",t:"gates",k:"mentor",d:"盖茨长期担任纳德拉的技术顾问与精神后盾,纳德拉称其为'导师';微软AI转型背后有盖茨持续参谋"},
+{s:"nadella",t:"ballmer",k:"work",d:"鲍尔默2014年卸任前钦点纳德拉接班;纳德拉上任后扭转鲍尔默时代的移动溃败"},
+{s:"gates",t:"ballmer",k:"friend",d:"哈佛同窗起步的40年情谊:盖茨拉鲍尔默入伙微软(第30号员工),晚年因接班与股权一度疏远,后和解"},
+{s:"gates",t:"melinda",k:"family",d:"1994年结婚,共建盖茨基金会;2021年离婚,2024年梅琳达彻底离开基金会,获125亿美元用于自主慈善"},
+{s:"gates",t:"zuck",k:"friend",d:"哈佛辍学生前后辈;盖茨是扎克伯格青年时代偶像,二人在慈善承诺(Giving Pledge)上同盟"},
+{s:"gates",t:"bezos",k:"friend",d:"西雅图双巨头,富豪榜常年邻居,气候投资(Breakthrough Energy)上有交集"},
+{s:"hoffman",t:"nadella",k:"work",d:"2016年微软262亿美元收购LinkedIn后,霍夫曼进入微软董事会至今,是纳德拉在硅谷的'人脉桥梁'"},
+{s:"hoffman",t:"thiel",k:"friend",d:"斯坦福同窗40年:政治立场左右对立(霍夫曼金主民主党、蒂尔力挺特朗普),却维持'吵不散'的友谊,曾同任PayPal高管"},
+{s:"hoffman",t:"musk",k:"work",d:"PayPal时代同僚;曾共同出资创立OpenAI,后霍夫曼成为马斯克最尖锐的公开批评者之一"},
+{s:"hoffman",t:"zuck",k:"invest",d:"Facebook天使轮投资人,并把扎克伯格引荐给蒂尔促成首笔50万美元投资"},
+{s:"thiel",t:"zuck",k:"invest",d:"2004年Facebook首位外部投资人(50万美元换10%),担任董事17年,是扎克伯格最重要的早期导师之一"},
+{s:"thiel",t:"musk",k:"friend",d:"PayPal合并造就的'相爱相杀':2000年蒂尔参与罢免马斯克的CEO职务,后和解;Founders Fund重仓SpaceX,两人政治上再度结盟"},
+{s:"thiel",t:"sacks",k:"work",d:"斯坦福《Stanford Review》战友、PayPal搭档(萨克斯任COO),同为'PayPal黑帮'政治化的核心"},
+{s:"thiel",t:"levchin",k:"cofounder",d:"1998年共同创立PayPal前身Confinity,蒂尔出钱、列夫琴出技术,是黑帮'创世二人组'"},
+{s:"thiel",t:"karp",k:"cofounder",d:"斯坦福法学院同窗,2003年共同创立Palantir;政治光谱相反(卡普自称社会主义者)却合作20余年"},
+{s:"thiel",t:"luckey",k:"invest",d:"拉奇被Meta解雇后,蒂尔的Founders Fund成为Anduril的奠基投资人,扶植其成为国防科技独角兽"},
+{s:"levchin",t:"musk",k:"work",d:"PayPal合并时期的技术掌门,与马斯克在技术路线(Linux vs Windows)上激烈冲突,是逼宫换帅的推手之一"},
+{s:"botha",t:"musk",k:"work",d:"博塔是马斯克在X.com亲手提拔的CFO,后任PayPal CFO;两人保持20余年交情,红杉多次投资马斯克旗下公司"},
+{s:"botha",t:"thiel",k:"work",d:"PayPal时代同僚,黑帮核心成员,后执掌红杉全球"},
+{s:"sacks",t:"musk",k:"friend",d:"马斯克核心密友:2022年深度参与Twitter收购与裁员,常一起打扑克;马斯克力挺其出任白宫AI沙皇"},
+{s:"a16z",t:"horowitz",k:"cofounder",d:"网景/Loudcloud时代就并肩的搭档,2009年共创a16z,塑造了'创始人友好'的风投新范式"},
+{s:"a16z",t:"zuck",k:"work",d:"安德森自2008年起任Meta董事至今,是扎克伯格最信任的董事会盟友,力挺其超级投票权结构"},
+{s:"a16z",t:"musk",k:"invest",d:"a16z参与Twitter私有化融资和xAI多轮融资,安德森与马斯克在'科技右转'上同声同气"},
+{s:"a16z",t:"altman",k:"invest",d:"a16z参投OpenAI后期巨额轮次;安德森同时公开批评'AI末日论',与奥特曼立场时合时分"},
+{s:"khosla",t:"sacks",k:"feud",d:"2024年起在X上多轮激烈互撕:科斯拉批评萨克斯'用职权偏袒自家利益',萨克斯回击其'酸葡萄'"},
+{s:"pg",t:"garrytan",k:"mentor",d:"谭是YC早期被资助的创业者与合伙人,格雷厄姆的嫡系传人,2023年回归执掌YC"},
+{s:"pg",t:"chesky",k:"mentor",d:"2009年YC冬季营录取Airbnb,著名典故:'去你的用户那里(纽约)挨家挨户拜访'——格雷厄姆最得意的案例之一"},
+{s:"pg",t:"patrick",k:"mentor",d:"科里森兄弟的首个项目Auctomatic出自YC(2007),格雷厄姆是Stripe最早的支持者与天使"},
+{s:"patrick",t:"johnc",k:"family",d:"亲兄弟,爱尔兰乡村长大的天才少年,共同创立Stripe:哥哥任CEO,弟弟任总裁"},
+{s:"patrick",t:"altman",k:"friend",d:"多年好友;奥特曼是Stripe早期个人投资者,两人同属'写长文谈进步'的硅谷知识分子圈"},
+{s:"patrick",t:"tobi",k:"ally",d:"Shopify的支付底层长期由Stripe驱动(Shopify Payments),两位创始人互相欣赏的'互联网经济基建双雄'"},
+{s:"patrick",t:"thiel",k:"invest",d:"蒂尔是Stripe早期投资人(2011年A轮前后),与红杉、马斯克同期下注"},
+{s:"garrytan",t:"armstrong",k:"invest",d:"谭在Initialized时期是Coinbase最早投资人之一(YC 2012届),这笔投资回报超千倍,奠定其江湖地位"},
+{s:"armstrong",t:"pg",k:"work",d:"Coinbase是YC 2012届孵化项目,PG时代的标志性成功案例"},
+{s:"armstrong",t:"dorsey",k:"ally",d:"加密阵营双旗手:Block与Coinbase既竞争支付场景,又在比特币立法游说上结盟"},
+{s:"musk",t:"shotwell",k:"work",d:"2002年加入SpaceX的第11号员工,20余年最信任的执行搭档:马斯克画饼,肖特韦尔落地火箭与星链生意"},
+{s:"musk",t:"zilis",k:"family",d:"Neuralink高管,同时是马斯克多名子女的母亲;曾任OpenAI董事,横跨其商业与私人版图"},
+{s:"musk",t:"zuck",k:"feud",d:"长期宿敌:2023年互约'笼斗'轰动全网;Threads狙击X、AI开源路线互踩、火箭与元宇宙隔空讥讽"},
+{s:"musk",t:"bezos",k:"rival",d:"二十年太空恩怨:SpaceX vs 蓝色起源、星链vs柯伊伯、首富宝座反复易主;马斯克曾讥讽贝索斯'退休后才想起造火箭'"},
+{s:"musk",t:"page",k:"feud",d:"曾是密友(马斯克常住佩奇家沙发);2015年因AI安全在生日宴上激烈争吵,佩奇骂他'物种歧视者',OpenAI成立后绝交"},
+{s:"musk",t:"jensen",k:"ally",d:"xAI是英伟达最大客户之一:孟菲斯Colossus超算集群GPU超10万张;黄仁勋盛赞马斯克建数据中心速度'超人类'"},
+{s:"musk",t:"ellison",k:"friend",d:"埃里森是马斯克挚友兼金主:曾任特斯拉董事,豪掷10亿美元支持Twitter私有化,多次邀马斯克到其夏威夷岛上度假"},
+{s:"musk",t:"dorsey",k:"friend",d:"多西公开称'马斯克是Twitter唯一的解药',支持其收购并转股;后对X的走向偶有微词,私交仍在"},
+{s:"musk",t:"leijun",k:"rival",d:"雷军两次赴美拜会马斯克(2013年);小米SU7对标特斯拉,雷军称马斯克'值得尊敬的对手',特斯拉粉丝与米粉隔空对战"},
+{s:"musk",t:"ambani",k:"ally",d:"2025年星链与信实Jio达成印度分销合作,从对峙转向竞合;两家仍在印度卫星通信市场暗中角力"},
+{s:"bezos",t:"jassy",k:"mentor",d:"贾西1997年加入亚马逊,曾任贝索斯'影子顾问'(贴身参谋),创建AWS;2021年贝索斯钦点其接任CEO"},
+{s:"bezos",t:"ambani",k:"rival",d:"印度零售与电商争夺战:亚马逊与信实多年缠斗,曾为Future集团收购案对簿公堂"},
+{s:"cook",t:"ternus",k:"mentor",d:"库克钦点的接班人:2026年4月官宣,9月1日交棒;特努斯被内部视为'乔布斯式产品人'与库克式稳健的折中"},
+{s:"cook",t:"ive",k:"work",d:"共事20余年的老同事:艾维2019年离开苹果创办LoveFrom,初期仍服务苹果,后彻底分手转投奥特曼阵营,被解读为对库克时代'运营优先'的无声批评"},
+{s:"cook",t:"zuck",k:"feud",d:"硅谷最著名公开恩怨之一:库克借隐私议题多次敲打Meta('你就是产品'),苹果ATT新政让Meta年损百亿美元广告收入,扎克伯格耿耿于怀"},
+{s:"cook",t:"pichai",k:"ally",d:"既竞争又共生:谷歌每年向苹果支付约200亿美元保住Safari默认搜索位,这桩'硅谷最贵友谊'正受反垄断案冲击"},
+{s:"cook",t:"musk",k:"rival",d:"2022年马斯克炮轰苹果税与下架威胁,亲赴库比蒂诺被库克'花园散步'安抚;特斯拉早年濒危时马斯克曾求售苹果,称库克'拒绝见面'"},
+{s:"cook",t:"altman",k:"ally",d:"2024年达成合作:ChatGPT接入Siri与Apple Intelligence;苹果借OpenAI补AI短板,同时艾维与奥特曼联手做硬件又构成潜在威胁"},
+{s:"cook",t:"ccwei",k:"ally",d:"苹果是台积电最大客户(常年占营收1/4左右),库克多次赴台并力挺台积电亚利桑那建厂,首批包下大量产能"},
+{s:"cook",t:"jaylee",k:"rival",d:"相爱相杀:三星既是苹果屏幕/存储关键供应商,又是手机市场头号对手;李在镕与库克多次会面谈供应"},
+{s:"cook",t:"youngliu",k:"ally",d:"富士康仍是iPhone最大组装商,刘扬伟上任后配合苹果推进印度产能转移"},
+{s:"cook",t:"gou",k:"ally",d:"郭台铭与库克合作十余年缔造iPhone供应链神话,'苹果吃肉富士康喝汤'的绑定关系"},
+{s:"cook",t:"hocktan",k:"ally",d:"苹果与博通签多年期无线芯片大单(数十亿美元级),同时苹果自研基带又在逐步'去博通化'"},
+{s:"cook",t:"amon",k:"rival",d:"高通与苹果曾爆发全球专利大战(2017-2019和解),如今苹果自研基带逐步替代高通,合约延长与脱钩并行"},
+{s:"cook",t:"lipbutan",k:"ally",d:"2026年中媒体爆出苹果与英特尔洽谈芯片合作/入股事宜,带动英特尔股价大涨;若成真将是美国制造叙事标志性联盟"},
+{s:"ternus",t:"ive",k:"work",d:"苹果硬件工程体系的前后辈:特努斯2001年入职,长期与艾维的设计团队协作打造iPhone/iPad"},
+{s:"pichai",t:"page",k:"mentor",d:"佩奇2015年重组Alphabet时钦点皮查伊执掌谷歌,2019年再交出Alphabet CEO;典型的'创始人选定的职业经理人'"},
+{s:"pichai",t:"brin",k:"work",d:"布林2023年回归办公室参与Gemini攻坚,皮查伊为其保留'创始人特权',两人在AI反击战中重新紧密协作"},
+{s:"page",t:"brin",k:"cofounder",d:"斯坦福博士生宿舍走出的传奇搭档,1998年共创谷歌;至今通过超级投票权共同控制Alphabet"},
+{s:"page",t:"schmidt",k:"work",d:"2001年风投强推施密特任CEO做'成人监护',2011年佩奇收回CEO;三人组维持十年微妙平衡"},
+{s:"brin",t:"schmidt",k:"work",d:"谷歌'三驾马车'成员:施密特管公司,布林管X实验室等登月项目"},
+{s:"brin",t:"milner",k:"friend",d:"同为俄裔科技圈代表,共同发起'突破奖'(Breakthrough Prize),每年同台颁奖"},
+{s:"zuck",t:"sandberg",k:"work",d:"14年黄金搭档:桑德伯格2008年从谷歌跳槽,把Facebook从烧钱机器变成广告印钞机;2022年体面退场"},
+{s:"zuck",t:"milner",k:"invest",d:"2009年DST豪掷2亿美元投资Facebook且不要董事席位,开创'创始人友好'巨额后期投资先河"},
+{s:"zuck",t:"spiegel",k:"feud",d:"2013年30亿美元收购Snapchat被23岁的斯皮格尔当面拒绝;此后Instagram像素级复制Stories,斯皮格尔称'我们不介意被抄,介意的是他们装作没抄'"},
+{s:"zuck",t:"chew",k:"rival",d:"Meta与TikTok的全球短视频战争:Reels贴身肉搏,Meta被曝雇公关公司抹黑TikTok,周受资国会听证时扎克伯格阵营隔岸观火"},
+{s:"zuck",t:"luckey",k:"feud",d:"2014年20亿美元收购Oculus,2017年因政治献金风波将拉奇扫地出门;2024年扎克伯格公开道歉,2025年Anduril与Meta达成军用XR合作,世纪和解"},
+{s:"zuck",t:"ek",k:"ally",d:"曾联合发表公开信炮轰苹果App Store规则与欧盟AI监管,音乐+社交的反苹果同盟"},
+{s:"sandberg",t:"schmidt",k:"work",d:"桑德伯格在谷歌时期(2001-2008)执掌AdWords在线销售,是施密特麾下大将"},
+{s:"hastings",t:"sarandos",k:"work",d:"20余年搭档:哈斯廷斯管产品与文化,萨兰多斯管内容;2020年升其为联席CEO,2023年放手"},
+{s:"hastings",t:"peters",k:"mentor",d:"哈斯廷斯培养的产品大将,2023年与萨兰多斯组成联席CEO接班"},
+{s:"sarandos",t:"peters",k:"work",d:"奈飞现任联席CEO双人组:内容+产品双轮驱动"},
+{s:"ellison",t:"catz",k:"work",d:"埃里森最信任的副手:卡茨辅佐其25年,从并购操盘手做到CEO,2025年功成转任执行副董事长"},
+{s:"ellison",t:"magouyrk",k:"mentor",d:"OCI云业务一手带出来的技术嫡系,39岁被钦点为联席CEO,押注'云+AI'的少壮派"},
+{s:"ellison",t:"sicilia",k:"mentor",d:"行业软件线提拔的老将,与马古伊克组成'一老一少'联席CEO"},
+{s:"ellison",t:"benioff",k:"feud",d:"硅谷最著名师徒反目:贝尼奥夫在甲骨文13年是埃里森爱将,创办Salesforce时埃里森一边投资一边派兵围剿,二十年嘴仗不断又惺惺相惜"},
+{s:"catz",t:"magouyrk",k:"work",d:"前任CEO与接棒者,卡茨称二人是'天作之合'"},
+{s:"catz",t:"sicilia",k:"work",d:"卡茨卸任时亲自背书的接班组合"},
+{s:"benioff",t:"nadella",k:"rival",d:"Slack vs Teams的死敌:贝尼奥夫指控微软'垄断捆绑'推动欧盟反垄断调查,称微软是'毒贩';CRM与AI Agent市场全面开战"},
+{s:"dell",t:"musk",k:"ally",d:"戴尔是xAI超算集群的主要服务器供应商之一,两人在X上互动频繁,迈克尔·戴尔晒单'AI工厂'订单"},
+{s:"dell",t:"jensen",k:"ally",d:"'戴尔AI工厂'与英伟达深度绑定,黄仁勋多次与戴尔同台站台,称其为AI基建最佳拍档之一"},
+{s:"jensen",t:"lisasu",k:"family",d:"史上最戏剧性的行业对决:两人是远房表亲(黄仁勋是苏姿丰的表舅辈),都生于台南,却分掌英伟达与AMD在AI芯片市场捉对厮杀"},
+{s:"jensen",t:"ccwei",k:"ally",d:"英伟达所有先进GPU依赖台积电代工,黄仁勋称'没有台积电就没有英伟达',每年赴台必与魏哲家把酒言欢"},
+{s:"jensen",t:"morris",k:"friend",d:"忘年交:1990年代张忠谋接下默默无闻的英伟达订单,黄仁勋称张是'一生的贵人',张退休宴上黄仁勋亲自致辞"},
+{s:"jensen",t:"hocktan",k:"rival",d:"AI芯片新战线:博通的定制ASIC(为谷歌/Meta/OpenAI代设计)正在蚕食英伟达GPU份额,两位华裔CEO的暗战"},
+{s:"jensen",t:"amon",k:"rival",d:"从手机芯片到AI PC与车载芯片多线交锋"},
+{s:"jensen",t:"lipbutan",k:"ally",d:"2025年9月英伟达宣布50亿美元入股英特尔,联合开发x86+RTX融合产品,被视为'救命钱'与产业格局重组信号"},
+{s:"jensen",t:"jaylee",k:"ally",d:"黄仁勋访韩与李在镕会面成韩国头条;三星HBM内存长期争取英伟达认证,黄仁勋曾在三星展台签名'批准'引爆话题"},
+{s:"jensen",t:"choi",k:"ally",d:"SK海力士是英伟达HBM高带宽内存的最大供应商,崔泰源多次与黄仁勋会谈锁定供应"},
+{s:"jensen",t:"youngliu",k:"ally",d:"富士康是英伟达AI服务器(GB200/NVL72)最大代工厂,双方还合资建超算中心"},
+{s:"jensen",t:"nadella",k:"ally",d:"微软Azure是英伟达GPU最大买家之一,两人频繁同台'商业互吹'"},
+{s:"jensen",t:"zuck",k:"ally",d:"Meta是英伟达最大客户之一;2024年两人同台对谈互换皮衣成名场面"},
+{s:"jensen",t:"ambani",k:"ally",d:"2024年起英伟达与信实合作在印度建AI基础设施,黄仁勋与安巴尼同台对谈'印度应出口AI'"},
+{s:"lisasu",t:"lipbutan",k:"work",d:"陈立武执掌Cadence时与AMD深度合作,二人同属半导体华人高管圈,既有旧谊又有x86直接竞争"},
+{s:"ccwei",t:"morris",k:"mentor",d:"张忠谋亲手培养并钦点的接班人之一,2024年起魏哲家独掌董事长兼CEO"},
+{s:"ccwei",t:"jaylee",k:"rival",d:"先进制程代工双雄:台积电与三星晶圆代工在3nm/2nm争夺苹果、英伟达、高通订单"},
+{s:"ccwei",t:"lipbutan",k:"rival",d:"英特尔代工(18A)誓言挑战台积电制程王座;同时英特尔部分产品仍下单台积电,亦敌亦客"},
+{s:"ccwei",t:"fouquet",k:"ally",d:"台积电是ASML EUV/High-NA光刻机最大客户,绑定全球先进制程命脉"},
+{s:"jaylee",t:"choi",k:"rival",d:"韩国财阀双雄:三星与SK海力士在HBM上世纪逆转(海力士反超),两位会长在财界既同盟又较劲"},
+{s:"jaylee",t:"fouquet",k:"ally",d:"三星向ASML采购EUV并合作建研发中心,李在镕亲赴荷兰签约"},
+{s:"jaylee",t:"son",k:"friend",d:"孙正义与李家两代交好,多次赴首尔会面,曾推销ARM与三星的资本合作"},
+{s:"jaylee",t:"amon",k:"ally",d:"三星Galaxy旗舰长期搭载骁龙芯片,同时三星自研Exynos又与高通竞争,典型竞合"},
+{s:"lipbutan",t:"fouquet",k:"ally",d:"英特尔是ASML High-NA EUV首个吃螃蟹客户,陈立武延续先进光刻豪赌"},
+{s:"morris",t:"gou",k:"friend",d:"台湾科技业两位教父级人物,公开场合互相敬重,产业立场偶有分歧"},
+{s:"gou",t:"youngliu",k:"mentor",d:"郭台铭2019年交棒刘扬伟出任鸿海董事长,自己退居幕后(一度参选台湾地区领导人)"},
+{s:"gou",t:"son",k:"friend",d:"多年挚友与生意伙伴:软银与鸿海联手拿下夏普,孙正义的Pepper机器人由富士康代工"},
+{s:"son",t:"jackma",k:"invest",d:"风投史最佳一笔:2000年孙正义6分钟拍板2000万美元投阿里,巅峰回报超千倍;二人互任董事20年,2020年前后先后退出彼此董事会"},
+{s:"son",t:"ellison",k:"ally",d:"Stargate合作伙伴;孙正义与埃里森同为'豪赌型'掌门,曾在甲骨文日本业务上有渊源"},
+{s:"son",t:"dara",k:"invest",d:"软银愿景基金曾是Uber最大股东,孙正义推动其全球补贴大战与合并交易,后逐步减持获利了结"},
+{s:"milner",t:"chew",k:"work",d:"周受资曾任DST合伙人,是米尔纳麾下发掘小米投资的干将"},
+{s:"milner",t:"leijun",k:"invest",d:"DST是小米最重要的早期国际投资方之一,赚得盆满钵满"},
+{s:"milner",t:"liuqiangdong",k:"invest",d:"DST重仓京东早期融资,陪跑至上市"},
+{s:"ponyma",t:"lau",k:"work",d:"腾讯'双核'20年:马化腾管产品战略,高盛出身的刘炽平管资本与投资版图,缔造腾讯系半个中国互联网"},
+{s:"ponyma",t:"jackma",k:"rival",d:"'二马'之争贯穿中国互联网20年:微信红包奇袭支付宝、阿里腾讯生态互相封禁,近年因监管环境同步低调,互有惺惺相惜之语"},
+{s:"ponyma",t:"wangxing",k:"invest",d:"腾讯是美团最大机构股东与流量靠山,王兴称马化腾'给钱给流量还不干预';2022年腾讯派发美团股份减持退出大股东席位"},
+{s:"ponyma",t:"colinhuang",k:"invest",d:"腾讯重仓拼多多,借其牵制阿里;拼多多崛起后与腾讯系电商亦生摩擦"},
+{s:"ponyma",t:"liuqiangdong",k:"invest",d:"腾讯曾为京东第一大股东(以微信入口换股权的经典联盟),2021年腾讯派息式减持,联盟松动"},
+{s:"ponyma",t:"yiming",k:"feud",d:"'头腾大战':2018年张一鸣朋友圈暗讽微信封杀抖音,马化腾罕见亲自下场回怼'可以理解为诽谤',两家诉讼数十起"},
+{s:"ponyma",t:"leijun",k:"rival",d:"米聊与微信的生死时速(2011)是中国移动互联网经典战役;此后小米与腾讯在应用分发、游戏等多线竞合"},
+{s:"ponyma",t:"robinli",k:"rival",d:"BAT时代双巨头:百度掉队后,腾讯与百度在搜索(微信搜一搜)、AI上仍持续交锋"},
+{s:"jackma",t:"tsai",k:"cofounder",d:"1999年蔡崇信放弃580万年薪加入月薪500元的阿里,设计了阿里全部资本架构;马云背后最重要的男人,如今接棒董事局主席"},
+{s:"jackma",t:"eddiewu",k:"mentor",d:"吴泳铭是'十八罗汉'之一、马云的技术亲信,操盘过支付宝与阿里妈妈;2023年马云支持的'阿里再创业'人选"},
+{s:"jackma",t:"robinli",k:"rival",d:"BAT三巨头时代的同侪与对手,公开场合多次同台论道(AI之争:马云'担心的是人',李彦宏'技术乐观')"},
+{s:"jackma",t:"liuqiangdong",k:"rival",d:"中国电商二十年宿敌:刘强东曾放话'十年内让阿里知道谁是老大',马云回应'京东将来会成为悲剧'"},
+{s:"jackma",t:"wangxing",k:"feud",d:"王兴多次公开批评阿里'缺乏底线',卖掉美团股份;阿里扶持饿了么与美团血战,新仇旧怨叠加"},
+{s:"jackma",t:"colinhuang",k:"rival",d:"拼多多用'农村包围城市'撕开淘宝腹地,黄峥称'我们和阿里是错位竞争',马云内部点名'拼多多值得学习'"},
+{s:"tsai",t:"eddiewu",k:"work",d:"2023年9月起搭档执掌阿里:蔡崇信任董事局主席、吴泳铭任CEO,推动'用户为先、AI驱动'改革"},
+{s:"yiming",t:"rubo",k:"cofounder",d:"南开大学室友,连续创业搭档(99房→字节跳动);2021年张一鸣卸任CEO交棒梁汝波,自己退居幕后专注'远景战略'"},
+{s:"yiming",t:"chew",k:"work",d:"张一鸣2021年亲自招募周受资出任TikTok CEO,押注其国际背景应对美国监管风暴"},
+{s:"rubo",t:"chew",k:"work",d:"现任汇报关系:周受资的TikTok业务线向字节跳动CEO梁汝波汇报"},
+{s:"chew",t:"leijun",k:"work",d:"周受资2015-2021年任小米CFO/国际部总裁,操盘小米上市,是雷军最器重的国际化大将"},
+{s:"chew",t:"spiegel",k:"rival",d:"短视频与年轻人注意力之战:TikTok与Snap既争用户又争广告主"},
+{s:"leijun",t:"duan",k:"rival",d:"手机江湖暗战:段永平是OPPO/vivo幕后教父,与小米贴身肉搏十余年;段永平网上点评小米模式'性价比是术不是道'"},
+{s:"leijun",t:"ren",k:"rival",d:"华为与小米从专利战(2024年和解交叉授权)到手机、汽车生态全面竞争;雷军公开称'华为是值得学习的对手'"},
+{s:"ren",t:"meng",k:"family",d:"父女:孟晚舟2018年在加拿大被拘押1028天成中美科技战标志事件,任正非'每天只睡几小时等女儿回家';归国后升任轮值董事长"},
+{s:"duan",t:"colinhuang",k:"mentor",d:"中国商界最著名师徒:段永平2006年花62万美元拍下巴菲特午餐,带的年轻人就是黄峥;从谷歌期权到创业方向都受段指点"},
+{s:"colinhuang",t:"kaifu",k:"work",d:"黄峥2004年作为早期员工加入谷歌,参与谷歌中国创建期工作,与时任谷歌中国掌门李开复有共事之谊"},
+{s:"kaifu",t:"gates",k:"work",d:"1998年李开复创建微软中国研究院(后MSRA),被盖茨称为'微软在亚洲最重要的投资'"},
+{s:"kaifu",t:"schmidt",k:"work",d:"2005年李开复从微软跳槽谷歌任大中华区总裁,引发微软对谷歌的世纪诉讼,施密特亲自坐镇打赢官司"},
+{s:"wangxing",t:"liuqiangdong",k:"rival",d:"2025年外卖大战:京东高调进军外卖补贴百亿,刘强东亲自送外卖叫阵,王兴以'闪购'反击进军即时零售"},
+{s:"wangxing",t:"neilshen",k:"invest",d:"红杉中国是美团最早机构投资人(A轮起),沈南鹏陪跑王兴从饭否到美团上市"},
+{s:"yiming",t:"neilshen",k:"invest",d:"红杉中国重仓字节跳动多轮,是其最大外部赢家之一;沈南鹏称错过字节A轮是'最遗憾的事'(后补仓)"},
+{s:"colinhuang",t:"neilshen",k:"invest",d:"红杉中国投资拼多多并陪跑至千亿美元市值"},
+{s:"neilshen",t:"botha",k:"work",d:"红杉资本2023年全球'分家':博塔执掌美欧,沈南鹏的红杉中国独立为HongShan,和平分手各自为战"},
+{s:"liangwf",t:"robinli",k:"rival",d:"DeepSeek开源低价冲击百度文心的商业化路线,倒逼文心宣布免费开源"},
+{s:"robinli",t:"kaifu",k:"work",d:"中国AI圈双布道者:李开复离开谷歌后与百度在人才与舆论场多有交集,零一万物与百度同处大模型牌桌"},
+{s:"gates",t:"jackma",k:"friend",d:"同代慈善同道:马云多次与盖茨同台论慈善,二人共同参与'捐赠誓言'相关倡议与全球健康议题"},
+{s:"jensen",t:"son",k:"work",d:"曾经的'遗憾交易':软银2016年曾是英伟达大股东(后清仓错失数千亿美元),2020年ARM出售英伟达案告吹;孙正义自嘲'卖掉英伟达是一生最大错误',两人仍频繁同台"},
+{s:"son",t:"choi",k:"ally",d:"软银与SK集团在AI数据中心、机器人领域多次会谈合作,孙正义访韩必见崔泰源"},
+{s:"ek",t:"cook",k:"feud",d:"Spotify是苹果'垄断税'最激烈控诉者:埃克推动欧盟对苹果开出18亿欧元罚单,库克方面称其'想免费搭车'"},
+{s:"dara",t:"chesky",k:"friend",d:"共享经济双子星CEO,公开互称好友,常交流平台治理心得;疫情期间两人多次互相打气"},
+{s:"karp",t:"luckey",k:"ally",d:"国防科技双雄:Palantir与Anduril联手竞标美军大单,公开宣布组建'国防科技联盟'对抗传统军工巨头"},
+{s:"karp",t:"musk",k:"ally",d:"同属'国防科技+反建制'阵营:Palantir、SpaceX同吃国防订单,卡普多次公开为马斯克的争议行为辩护"},
+{s:"murati",t:"brockman",k:"work",d:"OpenAI核心管理层多年同事,政变周末曾共同斡旋"},
+{s:"ilya",t:"brockman",k:"cofounder",d:"OpenAI联合创始人;2023年政变中苏茨克维亲自通知布罗克曼被除名,昔日战友决裂"},
+{s:"jassy",t:"dario",k:"invest",d:"亚马逊向Anthropic投资80亿美元,AWS成其'首选云与训练伙伴'(Trainium芯片),既是金主又是算力房东"},
+{s:"pichai",t:"dario",k:"invest",d:"谷歌累计投资Anthropic超30亿美元持股约14%,既下注对冲又与自家Gemini竞争,微妙的'投资对手'关系"},
+{s:"pichai",t:"nadella",k:"rival",d:"云与AI全面战争:Copilot vs Gemini、Azure vs GCP;两位印度裔CEO常被并称,纳德拉曾言'希望谷歌跳舞'"},
+{s:"pichai",t:"ambani",k:"ally",d:"谷歌45亿美元入股Jio Platforms,联手做廉价安卓机,皮查伊称'押注印度数字未来'"},
+{s:"zuck",t:"ambani",k:"ally",d:"Meta以57亿美元入股Jio创当年外资纪录,WhatsApp与JioMart深度绑定;扎克伯格出席安巴尼家族婚礼"},
+{s:"gates",t:"musk",k:"feud",d:"公开互怼多年:马斯克晒聊天记录嘲讽盖茨做空特斯拉('他居然还想跟我谈气候慈善'),盖茨称马斯克对OpenAI的攻击'大错特错'"},
+{s:"zuck",t:"nadella",k:"ally",d:"开源同盟:微软Azure托管Llama模型,两人同台宣布合作;在AI Agent市场又同场竞技"},
+{s:"musk",t:"liangwf",k:"rival",d:"DeepSeek爆火时马斯克质疑其'实际囤了大量H100',Grok与DeepSeek在开源榜单缠斗"},
+{s:"morris",t:"jaylee",k:"rival",d:"张忠谋多次公开称'三星是可敬又可怕的对手',台积电与三星的代工战争由两家掌门时代延续至今"},
+{s:"amon",t:"lisasu",k:"rival",d:"AI PC芯片新战场:骁龙X系列与AMD锐龙贴身竞争,两家同抢笔记本OEM订单"},
+{s:"lisasu",t:"ccwei",k:"ally",d:"AMD全系先进芯片由台积电代工,苏姿丰是新竹常客,与魏哲家保持紧密供应关系"},
+{s:"hocktan",t:"ccwei",k:"ally",d:"博通的AI定制芯片与网络芯片依赖台积电先进制程与封装产能"},
+{s:"sacks",t:"armstrong",k:"ally",d:"萨克斯主导的白宫加密新政被视为Coinbase重大利好,阿姆斯特朗公开支持其监管框架"},
+{s:"sacks",t:"a16z",k:"ally",d:"同属'科技右翼'政商网络:a16z深度参与特朗普政府科技政策,与萨克斯的AI/加密议程互为奥援"},
+{s:"thiel",t:"a16z",k:"ally",d:"硅谷右转双引擎:Founders Fund与a16z常年联合下注(SpaceX、Anduril等),政治议程上互相呼应"},
+{s:"ek",t:"mensch",k:"ally",d:"欧洲科技自主同盟:埃克公开力挺Mistral代表的'欧洲主权AI',同为欧洲科技政策头面人物"},
+{s:"aravind",t:"ilya",k:"work",d:"斯里尼瓦斯在OpenAI期间曾与苏茨克维共事,自称深受其研究品味影响"},
+{s:"demis",t:"hinton",k:"friend",d:"两位诺奖得主(2024年同年获诺贝尔):一个化学奖一个物理学奖,公开互相致敬"},
+{s:"gou",t:"jaylee",k:"work",d:"鸿海与三星曾因夏普面板供货纠纷交恶多年,郭台铭一度公开炮轰三星,后时代和解"},
+{s:"ng",t:"kaifu",k:"work",d:"中美AI布道者双子星:同写AI科普畅销书、同台论AI落地,百度时期(吴恩达任首席科学家)与创新工场多有交集"},
+{s:"feifei",t:"hinton",k:"work",d:"ImageNet(李飞飞)与AlexNet(辛顿团队)的历史性相遇成就2012深度学习大爆炸,学界互相成就的典范"},
+{s:"nadella",t:"son",k:"work",d:"Stargate宣布时微软从OpenAI'独家云'让位,软银成最大金主;纳德拉笑称'我只说一句:我们有800亿美元资本开支'"},
+{s:"ellison",t:"nadella",k:"rival",d:"云计算宿敌变盟友:Oracle数据库上架Azure,埃里森亲赴雷德蒙德同台,称'数据库战争结束了'"},
+{s:"hastings",t:"zuck",k:"work",d:"哈斯廷斯2011-2019年担任Facebook董事,深度参与其上市前后的关键决策,后因Netflix与Facebook竞争视频业务卸任"},
+{s:"hastings",t:"ballmer",k:"work",d:"哈斯廷斯2007-2012年担任微软董事,与鲍尔默共事;离任时直言'创始人文化的公司更适合我'"},
+{s:"sarandos",t:"jassy",k:"rival",d:"流媒体战争:Prime Video与Netflix在内容、体育版权上正面竞争,亚马逊以电商利润补贴内容让萨兰多斯颇为忌惮"},
+{s:"zilis",t:"altman",k:"work",d:"齐里斯2016年起担任OpenAI董事多年,政变前的2023年3月辞任;她身处马斯克阵营核心,是马斯克与奥特曼两大宿敌之间最私人的交叉点"},
+{s:"pachocki",t:"altman",k:"work",d:"奥特曼钦点的首席科学家,称其为'我们这代最杰出的头脑之一';传Meta曾开出天价挖角被拒"},
+{s:"pachocki",t:"ilya",k:"work",d:"苏茨克维的继任者,曾在其麾下共同主导GPT-4预训练与推理研究"},
+{s:"kaplan",t:"dario",k:"cofounder",d:"Anthropic联合创始人,与达里奥同期从OpenAI出走;Scaling Laws论文共同奠基人"},
+{s:"kaplan",t:"daniela",k:"cofounder",d:"Anthropic创始团队核心成员,共事多年"},
+{s:"kaplan",t:"altman",k:"work",d:"前OpenAI研究员,GPT-3规模化路线的理论推手之一,后随阿莫迪兄妹出走"},
+{s:"shazeer",t:"pichai",k:"work",d:"谷歌2024年豪掷27亿美元'回购'Character.AI团队,核心就是请回沙泽尔——他2021年因谷歌不肯发布聊天机器人愤而出走"},
+{s:"shazeer",t:"demis",k:"work",d:"回归后出任Gemini联合技术主管,向哈萨比斯体系汇报"},
+{s:"shazeer",t:"gomez",k:"work",d:"Transformer论文'八子'同门:2017年共同署名《Attention Is All You Need》,改变AI历史"},
+{s:"shear",t:"altman",k:"work",d:"2023年政变之夜被董事会任命为临时CEO,72小时后奥特曼回归;他留下名言'我没看到任何安全问题导致的解雇证据'"},
+{s:"shear",t:"ilya",k:"work",d:"由苏茨克维主导的董事会任命其救场,短暂共事三天"},
+{s:"shear",t:"pg",k:"work",d:"Twitch前身Justin.tv是YC 2007届项目,格雷厄姆早期门徒"},
+{s:"delangue",t:"lecun",k:"ally",d:"开源AI同盟军:Hugging Face托管Llama全系模型,与杨立昆共同对抗闭源路线"},
+{s:"delangue",t:"benioff",k:"invest",d:"Salesforce领投Hugging Face 2.35亿美元D轮,贝尼奥夫亲自站台"},
+{s:"delangue",t:"jensen",k:"invest",d:"英伟达参投并与Hugging Face深度合作推理服务"},
+{s:"gross",t:"ilya",k:"cofounder",d:"SSI联合创始人;2025年格罗斯被Meta挖走,苏茨克维公开确认'分道扬镳',创始组合一年即散"},
+{s:"gross",t:"zuck",k:"work",d:"扎克伯格试图整体收购SSI未果后,转而把格罗斯个人挖入Meta超级智能团队"},
+{s:"gross",t:"natfriedman",k:"cofounder",d:"硅谷著名投资双人组NFDG(Nat & Daniel),共同押中数十家AI公司,后双双加盟Meta"},
+{s:"gross",t:"altman",k:"work",d:"曾任YC合伙人,主管AI方向,是奥特曼YC时代的旧部"},
+{s:"natfriedman",t:"nadella",k:"work",d:"2018年微软75亿美元收购GitHub后,纳德拉钦点其出任GitHub CEO,主导推出Copilot前身"},
+{s:"natfriedman",t:"zuck",k:"work",d:"2025年与格罗斯一同加盟Meta,统管AI产品与应用研究"},
+{s:"gomez",t:"jensen",k:"invest",d:"英伟达参投Cohere多轮,押注企业级大模型赛道"},
+{s:"krieger",t:"systrom",k:"cofounder",d:"Instagram两人创始组合:斯特罗姆管产品愿景,克里格管工程,13人团队卖出10亿美元"},
+{s:"krieger",t:"dario",k:"work",d:"2024年出任Anthropic首席产品官,把Claude从研究品变成消费品的操盘手"},
+{s:"krieger",t:"zuck",k:"work",d:"IG被收购后在Meta体系内共事六年,与斯特罗姆同期出走"},
+{s:"intrator",t:"jensen",k:"ally",d:"英伟达持股CoreWeave并优先供货GPU,被视为'亲儿子'云厂商,上市时黄仁勋站台"},
+{s:"intrator",t:"altman",k:"ally",d:"OpenAI与CoreWeave签下累计超200亿美元算力合同,并入股绑定"},
+{s:"intrator",t:"nadella",k:"ally",d:"微软曾占CoreWeave收入六成以上,是其崛起的最大金主客户"},
+{s:"brettaylor",t:"altman",k:"work",d:"政变后受命重组OpenAI董事会并出任董事长,是奥特曼背后最重要的'成人监护人'"},
+{s:"brettaylor",t:"benioff",k:"work",d:"曾任Salesforce联席CEO,被视为接班人,2023年突然辞职令贝尼奥夫错愕,后创办AI客服公司Sierra"},
+{s:"brettaylor",t:"musk",k:"feud",d:"任推特董事长期间主导'毒丸计划'抵抗马斯克收购,又起诉迫使其完成交易,法庭上正面交锋"},
+{s:"brettaylor",t:"dangelo",k:"work",d:"OpenAI董事会同僚:泰勒任董事长,德安杰洛是政变旧董事会唯一留任者"},
+{s:"garman",t:"jassy",k:"mentor",d:"贾西在AWS的嫡系:从实习生做到AWS CEO,完整复刻贾西的晋升路径"},
+{s:"garman",t:"dario",k:"ally",d:"AWS与Anthropic运营层面的对接人:80亿美元投资落地、Trainium芯片合作均由其操盘"},
+{s:"kevinscott",t:"nadella",k:"work",d:"微软CTO,2019年起力主押注OpenAI的内部第一推手,纳德拉最重要的技术参谋"},
+{s:"kevinscott",t:"altman",k:"ally",d:"微软-OpenAI联盟的日常对接轴心,主导GPT全面接入微软产品线"},
+{s:"kurian",t:"pichai",k:"work",d:"2018年皮查伊亲自延揽执掌谷歌云,十年把GCP从陪跑做到盈利"},
+{s:"kurian",t:"ellison",k:"feud",d:"甲骨文22年老将、产品总裁,2018年因云战略与埃里森激烈冲突休假出走,转投谷歌成为对手"},
+{s:"federighi",t:"cook",k:"work",d:"库克麾下软件最高负责人,苹果发布会最具人气的高管"},
+{s:"federighi",t:"ternus",k:"work",d:"软硬件双子星:曾与特努斯同被视为CEO候选,如今一个掌软件一个登顶"},
+{s:"fadell",t:"ive",k:"feud",d:"苹果史上著名内斗:iPod/iPhone时代两人争夺产品主导权与功劳归属,法德尔离开后多年隔空互呛"},
+{s:"fadell",t:"page",k:"work",d:"2014年佩奇拍板32亿美元收购Nest,法德尔短暂成为谷歌硬件野心的旗手,两年后出走"},
+{s:"gelsinger",t:"lipbutan",k:"work",d:"英特尔前后任CEO:基辛格IDM 2.0豪赌烧钱未竟,2024年底被董事会劝退,陈立武接盘收拾残局"},
+{s:"gelsinger",t:"morris",k:"feud",d:"曾公开称'把鸡蛋放在台湾篮子里很危险'惹怒张忠谋,张在自传中罕见点名回击,后基辛格公开道歉"},
+{s:"gelsinger",t:"ccwei",k:"rival",d:"任内誓言18A制程反超台积电,同时又不得不把自家芯片下单给魏哲家,亦敌亦客的尴尬"},
+{s:"gelsinger",t:"jensen",k:"rival",d:"曾讥讽英伟达AI地位'纯属运气',黄仁勋罕见动怒回击;基辛格卸任后又改口称赞"},
+{s:"renehaas",t:"son",k:"work",d:"软银旗下Arm的CEO,孙正义AI战略的关键执行人,IPO造就软银翻身仗"},
+{s:"renehaas",t:"jensen",k:"work",d:"英伟达400亿美元收购Arm案的当事双方,案破后英伟达仍是Arm架构最大客户之一"},
+{s:"renehaas",t:"amon",k:"feud",d:"2024年Arm起诉高通(Nuvia授权纠纷)震动行业,两位CEO对簿公堂,2025年陪审团裁高通胜"},
+{s:"jimkeller",t:"musk",k:"work",d:"2016年马斯克亲自挖来主导特斯拉FSD自动驾驶芯片,从零造出车载AI大脑"},
+{s:"jimkeller",t:"lisasu",k:"work",d:"AMD Zen架构总设计师,苏姿丰翻身之战的技术基石;两人联手完成AMD史上最大逆转"},
+{s:"jimkeller",t:"jensen",k:"rival",d:"Tenstorrent以RISC-V路线挑战英伟达生态,凯勒公开称'CUDA不是护城河是沼泽'"},
+{s:"wangchuanfu",t:"musk",k:"rival",d:"马斯克2011年大笑'你见过比亚迪的车吗?',2024年改口'他们的车现在极具竞争力'——全球电动车销量王座之争的两位主角"},
+{s:"wangchuanfu",t:"zengyuqun",k:"rival",d:"动力电池双雄:刀片电池vs麒麟电池公开互呛,比亚迪自供vs宁德外销两条路线之争"},
+{s:"wangchuanfu",t:"leijun",k:"ally",d:"比亚迪为小米SU7供应刀片电池;雷军多次参观比亚迪并称王传福是'中国制造的脊梁'"},
+{s:"zengyuqun",t:"musk",k:"ally",d:"宁德时代是特斯拉最大电池供应商,马斯克多次与曾毓群密会;曾笑称'他经常给我打电话聊到半夜'"},
+{s:"zengyuqun",t:"libin",k:"ally",d:"宁德时代深度绑定蔚来:供电池、投资蔚来能源换电体系"},
+{s:"zengyuqun",t:"leijun",k:"ally",d:"小米汽车高配版电池供应商,雷军与'宁王'保持密切供应关系"},
+{s:"hexiaopeng",t:"musk",k:"feud",d:"2021年正面互怼:马斯克讽小鹏'偷了特斯拉旧代码',何小鹏回击'要在中国把你打得找不着北'"},
+{s:"hexiaopeng",t:"leijun",k:"invest",d:"雷军是何小鹏多年好友与天使投资人,小鹏汽车A轮即入局;何小鹏称'没有雷总就没有小鹏汽车'"},
+{s:"hexiaopeng",t:"libin",k:"friend",d:"'蔚小理'三兄弟:同期造车、互相站台,经典三人合影刷屏车圈"},
+{s:"hexiaopeng",t:"lixiang",k:"friend",d:"造车新势力同袍,公开互动频繁,产品路线却日益分化"},
+{s:"libin",t:"lixiang",k:"friend",d:"汽车之家(李想)与易车(李斌)本是宿敌,造车后惺惺相惜成盟友"},
+{s:"libin",t:"liuqiangdong",k:"invest",d:"刘强东夫妇是蔚来最早的个人投资人之一,15分钟就拍板"},
+{s:"libin",t:"ponyma",k:"invest",d:"腾讯是蔚来第二大股东,2019年蔚来至暗时刻马化腾继续加仓力挺"},
+{s:"lixiang",t:"wangxing",k:"invest",d:"王兴个人+美团累计投资理想数亿美元,公开'吹爆'李想:'中国汽车界我最看好他'"},
+{s:"wangtao",t:"neilshen",k:"invest",d:"红杉中国是大疆重要机构投资方,沈南鹏称其为'最骄傲的硬科技投资'之一"},
+{s:"wanghuiwen",t:"wangxing",k:"cofounder",d:"清华宿舍上下铺兄弟,从校内网到美团二十年同行;2023年王慧文因健康退休,王兴罕见长文:'感谢老王'"},
+{s:"suhua",t:"yiming",k:"rival",d:"快手vs抖音:中国短视频十年双雄战,从产品到电商全面对垒"},
+{s:"suhua",t:"ponyma",k:"invest",d:"腾讯是快手最大机构股东,上市前累计持股超20%"},
+{s:"yangzhilin",t:"liangwf",k:"rival",d:"中国大模型新生代双星:Kimi与DeepSeek同被称为'AI六小龙'突围者,人才与长文本/推理路线竞赛"},
+{s:"yangzhilin",t:"yiming",k:"rival",d:"字节豆包重金挖角月之暗面核心人才,Kimi与豆包正面争夺C端用户"},
+{s:"yangzhilin",t:"neilshen",k:"invest",d:"红杉中国参与月之暗面多轮融资,押注90后AI创始人"},
+{s:"wangjian",t:"jackma",k:"work",d:"马云力排众议:'每年投10亿,投10年,做不出来再说'——王坚顶着'骗子'骂名造出阿里云,今日阿里最值钱的资产"},
+{s:"wangjian",t:"eddiewu",k:"work",d:"阿里云前后任掌门:王坚奠基'飞天',吴泳铭推动AI优先战略"},
+{s:"chengwei",t:"jackma",k:"work",d:"程维是支付宝B2C事业部出身,马云旧部;滴滴崛起背后阿里既是早期投资方又因快的合并恩怨交织"},
+{s:"chengwei",t:"kalanick",k:"rival",d:"2015-2016年滴滴与Uber中国烧钱百亿大战,终以程维收编Uber中国、卡兰尼克换股退场告终"},
+{s:"chengwei",t:"son",k:"invest",d:"软银愿景基金是滴滴最大外部股东,累计注资超百亿美元"},
+{s:"chengwei",t:"wangxing",k:"rival",d:"美团打车突袭上海,滴滴反手做外卖,两位福建老乡兵戎相见后各自收缩"},
+{s:"qilu",t:"ballmer",k:"work",d:"鲍尔默亲自延揽的微软全球执行副总裁,统管Bing与Office,华人在硅谷的职业天花板"},
+{s:"qilu",t:"nadella",k:"work",d:"曾与纳德拉同为微软高管序列竞争者;纳德拉上任后陆奇因伤离职,两人保持敬重"},
+{s:"qilu",t:"robinli",k:"work",d:"2017年空降百度任COO,18个月推动'All in AI'改革,触动利益闪电离场,百度市值随之蒸发"},
+{s:"qilu",t:"altman",k:"work",d:"受奥特曼之邀创办YC中国;YC撤出后独立为奇绩创坛,延续YC模式"},
+{s:"qilu",t:"kaifu",k:"friend",d:"同为微软系出身的华人AI布道者,三十年交情,常被并称'中国AI圈双导师'"},
+{s:"laurene",t:"ive",k:"friend",d:"乔布斯遗孀与乔布斯的设计灵魂:艾维离开苹果后,劳伦娜是LoveFrom背后的重要支持者,两家是世交"},
+{s:"laurene",t:"cook",k:"friend",d:"乔布斯身后,库克与鲍威尔·乔布斯家族保持密切私人往来,重大发布必邀其坐镇前排"},
+{s:"seanparker",t:"zuck",k:"mentor",d:"Facebook首任总裁,教会19岁的扎克伯格'永远不要交出控制权',设计了创始人独大的股权结构"},
+{s:"seanparker",t:"thiel",k:"work",d:"正是帕克把扎克伯格引荐给蒂尔,促成硅谷史上最著名的50万美元天使投资"},
+{s:"seanparker",t:"hoffman",k:"work",d:"霍夫曼与帕克联手把Facebook推到蒂尔面前,硅谷人脉网的经典一役"},
+{s:"saverin",t:"zuck",k:"feud",d:"联合创始人股份从30%被稀释到个位数,对簿公堂后和解;《社交网络》让这段背叛全球闻名"},
+{s:"dangelo",t:"zuck",k:"friend",d:"高中编程搭档、Facebook首任CTO;创办Quora后两人仍保持私交,小扎称其'我认识的最聪明的人'"},
+{s:"dangelo",t:"altman",k:"work",d:"OpenAI董事,参与罢免奥特曼却在重组后唯一留任,被外界称为'最大的谜'"},
+{s:"ericyuan",t:"nadella",k:"rival",d:"疫情时代Teams与Zoom贴身肉搏,微软捆绑策略被袁征公开抨击'不公平竞争'"},
+{s:"ericyuan",t:"benioff",k:"invest",d:"Salesforce在Zoom IPO时战略入股1亿美元,贝尼奥夫称袁征是'最值得信任的创始人'"},
+{s:"annewojcicki",t:"brin",k:"family",d:"2007年结婚,布林是23andMe最早的金主之一;2015年离婚,仍共同抚养两个孩子"},
+{s:"annewojcicki",t:"milner",k:"work",d:"突破奖共同发起人之一,与布林、米尔纳同属这个科学慈善圈层"},
+{s:"sweeney",t:"cook",k:"feud",d:"Epic诉苹果世纪反垄断案:故意触发《堡垒之夜》下架,死磕'苹果税'五年,迫使苹果开放外部支付链接"},
+{s:"sweeney",t:"pichai",k:"feud",d:"Epic诉谷歌案2023年陪审团裁定Epic全胜,谷歌被迫开放Play商店,斯维尼的最大胜利"},
+{s:"sweeney",t:"ponyma",k:"invest",d:"腾讯2012年起持有Epic约40%股份,是斯维尼背后最大的资本靠山,但他牢牢握住控制权"},
+{s:"cz",t:"armstrong",k:"rival",d:"全球两大加密交易所:币安激进扩张vs Coinbase合规路线,两位创始人理念公开相左"},
+{s:"cz",t:"musk",k:"invest",d:"币安出资5亿美元支持马斯克收购推特,CZ称'为了把Web3带进推特'"},
+{s:"vitalik",t:"thiel",k:"invest",d:"2014年获蒂尔奖学金10万美元,从滑铁卢大学辍学全职创办以太坊"},
+{s:"vitalik",t:"armstrong",k:"ally",d:"Coinbase是以太坊生态最大的合规入口,布特林与阿姆斯特朗在监管议题上同盟"},
+{s:"vitalik",t:"cz",k:"work",d:"币安是ETH最大交易场所;V神对CZ的中心化帝国既依存又公开警惕"},
+{s:"durov",t:"musk",k:"friend",d:"言论自由同盟:2024年杜罗夫在法国被捕,马斯克第一时间发起#FreePavel声援,两人互相欣赏"},
+{s:"durov",t:"zuck",k:"rival",d:"Telegram与WhatsApp/Messenger的全球用户战;杜罗夫常嘲讽Meta'抄袭Telegram功能清单'"},
+{s:"neumann",t:"son",k:"feud",d:"软银把WeWork吹到470亿美元估值又亲手戳破,孙正义自认'人生最大投资失误',两人对簿公堂后和解"},
+{s:"neumann",t:"a16z",k:"invest",d:"东山再起:2022年安德森豪掷3.5亿美元投其地产新创Flow,a16z史上最大单笔种子投资,舆论哗然"},
+{s:"kalanick",t:"dara",k:"work",d:"被董事会罢免后由科斯罗萨西接任,交接充满火药味;卡兰尼克至今保留Uber董事席位多年后才清仓离场"},
+{s:"moskovitz",t:"zuck",k:"cofounder",d:"哈佛同宿舍联合创始人,Facebook第三号人物,2008年和平出走创办Asana,仍是小扎多年好友"},
+{s:"moskovitz",t:"dario",k:"invest",d:"通过个人财富与Open Philanthropy成为Anthropic最早最大的金主之一,押注AI安全路线"},
+{s:"moskovitz",t:"dangelo",k:"work",d:"Facebook初创期核心技术团队的并肩同事"},
+{s:"systrom",t:"zuck",k:"feud",d:"10亿美元卖掉IG后留任六年,因资源被掐、自主权被收愤而出走;后在反垄断听证中作证'扎克伯格视IG为威胁'"},
+{s:"systrom",t:"dorsey",k:"feud",d:"多西是IG天使投资人与挚友,一直以为IG会卖给推特;得知卖给Facebook当天'深感背叛',友谊终结"},
+{s:"koum",t:"zuck",k:"feud",d:"190亿美元收购WhatsApp创纪录;四年后库姆因广告化与隐私理念决裂,留下8.5亿美元未兑现期权拂袖而去"},
+{s:"barra",t:"leijun",k:"work",d:"2013年雷军亲自从谷歌挖来的国际化大将,操盘小米出海,'Hugo时代'奠定印度市场霸主地位"},
+{s:"barra",t:"zuck",k:"work",d:"2017年离开小米后执掌Oculus VR四年,是扎克伯格元宇宙野心的早期操盘手之一"},
+{s:"barra",t:"pichai",k:"work",d:"谷歌Android创始团队成员出身,与皮查伊同属Android体系旧部"},
+{s:"chandra",t:"ambani",k:"rival",d:"印度双雄:塔塔与信实在零售、电信、半导体全面竞争,钱德拉与安巴尼是印度商界两极"},
+{s:"chandra",t:"cook",k:"ally",d:"塔塔电子接手iPhone印度组装产线,是库克供应链'去风险化'战略的关键伙伴"},
+{s:"dylanfield",t:"thiel",k:"invest",d:"2012年获蒂尔奖学金辍学创办Figma,是该奖学金继V神之后最成功的案例之一"},
+{s:"edison",t:"nikolatesla",k:"feud",d:"电流战争:特斯拉曾为爱迪生工作,因直流/交流之争与'5万美元玩笑'出走;此后两人用电刑表演与舆论战互相攻击十余年"},
+{s:"nikolatesla",t:"westinghouse",k:"ally",d:"西屋买下特斯拉交流电专利,联手拿下尼亚加拉水电站奠定现代电网;西屋财务危机时,特斯拉主动撕毁专利费合同相报"},
+{s:"edison",t:"westinghouse",k:"rival",d:"电流战争两大阵营主帅:直流(爱迪生)vs交流(西屋),以芝加哥世博会与尼亚加拉电站的交流电全胜告终"},
+{s:"edison",t:"jpmorgan",k:"invest",d:"摩根是爱迪生电气最大金主,后主导其合并为通用电气(GE),爱迪生本人反而出局——金融驯服发明家的经典案例"},
+{s:"nikolatesla",t:"jpmorgan",k:"invest",d:"摩根资助特斯拉建沃登克里弗塔(无线传电之梦),中途断供,塔废梦碎,特斯拉自此一蹶不振"},
+{s:"jpmorgan",t:"carnegie",k:"invest",d:"1901年摩根以4.8亿美元买下卡内基钢铁组建美国钢铁(史上首家十亿美元公司),'恭喜你成为世界首富'载入史册"},
+{s:"carnegie",t:"rockefeller",k:"rival",d:"镀金时代双巨头:钢铁vs石油的首富之争,晚年又在慈善上较劲,共同定义了美国'裸捐'传统"},
+{s:"rockefeller",t:"jpmorgan",k:"rival",d:"实业垄断vs金融垄断的两极,互相忌惮又不得不合作,最终一起被反托拉斯运动钉上历史"},
+{s:"edison",t:"ford",k:"mentor",d:"福特曾是爱迪生照明公司总工程师,爱迪生一句'就这么干'坚定其造车决心;两人终生挚友,福特保存着装有爱迪生'最后一口气'的试管"},
+{s:"musk",t:"nikolatesla",k:"mentor",d:"跨时空致敬:马斯克以特斯拉命名公司,称其'被历史亏待';但他也说过'我其实更敬佩爱迪生——他能把发明变成产品'"},
+{s:"watsonsr",t:"watsonjr",k:"family",d:"美国商业史最著名的父子交接:办公室争吵声震走廊,小沃森却赌上全部身家押注System/360,把父亲的帝国推上巅峰"},
+{s:"watsonsr",t:"wangan",k:"work",d:"1956年王安把磁芯存储器专利以40万美元卖给IBM,自觉被压价羞辱,立誓'要让IBM知道华人的厉害'"},
+{s:"watsonjr",t:"wangan",k:"rival",d:"王安电脑的字处理机一度横扫美国办公室直逼IBM腹地;王安坚持不兼容IBM PC,帝国随之倾覆"},
+{s:"shockley",t:"noyce",k:"feud",d:"肖克利把硅带到圣克拉拉谷,又亲手逼走未来:诺伊斯领衔'八叛徒'出走创办仙童,肖克利至死称他们为叛徒"},
+{s:"shockley",t:"moore",k:"feud",d:"摩尔受不了肖克利的偏执管理与测谎仪文化,随诺伊斯出走——硅谷'叛逆创业'基因的起点"},
+{s:"noyce",t:"moore",k:"cofounder",d:"两次共同创业:1957年仙童半导体、1968年英特尔;一个发明集成电路,一个提出摩尔定律"},
+{s:"noyce",t:"grove",k:"work",d:"格鲁夫是英特尔第3号员工:'诺伊斯定方向、摩尔定节奏、格鲁夫抓执行'的铁三角"},
+{s:"moore",t:"grove",k:"mentor",d:"格鲁夫在仙童师从摩尔并随其创办英特尔,最终接棒CEO,完成从存储器到处理器的世纪转身"},
+{s:"grove",t:"gelsinger",k:"mentor",d:"基辛格18岁进英特尔,是格鲁夫钦点的技术助理,自称'格鲁夫教会我一切';他重返英特尔正是想复刻偶像的转型奇迹"},
+{s:"grove",t:"gates",k:"ally",d:"Wintel联盟双枭雄:英特尔芯片+微软系统统治PC时代二十年,相互成就又互相提防"},
+{s:"morris",t:"moore",k:"work",d:"同代半导体教父:张忠谋在德州仪器时期与摩尔同辈论交,'我们这代人一起把晶体管做成了产业'"},
+{s:"morris",t:"grove",k:"ally",d:"台积电初创期,格鲁夫的英特尔给了关键的工艺认证与订单背书,张忠谋多次公开感念这段'雪中送炭'"},
+{s:"arthurrock",t:"noyce",k:"invest",d:"洛克促成'八叛徒'获仙童注资,11年后又为诺伊斯一通电话募来英特尔启动资金——'风险投资'由此成为一个行业"},
+{s:"arthurrock",t:"jobs",k:"invest",d:"苹果早期投资人与董事;乔布斯被赶出苹果时,洛克站在了斯卡利一边,乔布斯多年耿耿于怀"},
+{s:"valentine",t:"noyce",k:"work",d:"瓦伦丁是仙童半导体销售主管出身,亲历八叛徒时代,把仙童经验炼成了红杉的'投赛道'哲学"},
+{s:"valentine",t:"jobs",k:"invest",d:"红杉投资早期苹果;瓦伦丁评价乔布斯:'长得像胡志明,但他是我见过最有说服力的人'"},
+{s:"valentine",t:"botha",k:"mentor",d:"红杉衣钵:瓦伦丁开创的体系经莫里茨一代传至博塔,横跨半个世纪"},
+{s:"jobs",t:"woz",k:"cofounder",d:"车库双子星:沃兹造出Apple I/II,乔布斯把它卖给世界;'他负责发明,我负责让发明有意义'"},
+{s:"jobs",t:"sculley",k:"feud",d:"'你想卖一辈子糖水吗?'——乔布斯亲手请来的CEO,1985年联合董事会把他赶出苹果,商业史最著名的引狼入室"},
+{s:"jobs",t:"cook",k:"mentor",d:"1998年乔布斯亲自面试库克,临终钦点接班:'别问我会怎么做,做你认为对的事'"},
+{s:"jobs",t:"ive",k:"friend",d:"灵魂搭档,每天共进午餐;乔布斯称艾维是'苹果除我之外最有权力的人'、'我精神上的伴侣'"},
+{s:"jobs",t:"laurene",k:"family",d:"1991年结婚相伴二十年;乔布斯身后,劳伦娜执掌其遗产,成为科技界最有影响力的慈善投资人之一"},
+{s:"jobs",t:"gates",k:"feud",d:"PC时代双子星四十年相爱相杀:互相指责偷创意('我们都有个有钱邻居叫施乐'),晚年和解,盖茨是少数获邀私人告别的人"},
+{s:"jobs",t:"noyce",k:"mentor",d:"年轻的乔布斯常骑摩托去找诺伊斯长谈,'他让我理解了硅谷是什么';诺伊斯笑称'这小子总在半夜打电话来'"},
+{s:"jobs",t:"fadell",k:"work",d:"法德尔在乔布斯麾下缔造iPod与初代iPhone,既是爱将也常顶撞,'和乔布斯开会像上战场'"},
+{s:"jobs",t:"son",k:"friend",d:"孙正义拿着自画的手机草图向乔布斯求iPhone日本独家代理,乔布斯笑骂'疯子'却给了他——软银移动由此翻身"},
+{s:"jobs",t:"benioff",k:"mentor",d:"贝尼奥夫视乔布斯为终生导师:Salesforce的'App Store'商标是乔布斯无偿相赠,'没有他就没有Salesforce'"},
+{s:"jobs",t:"ellison",k:"friend",d:"硅谷最铁的私交:邻居、每周散步;埃里森曾提议买下苹果让乔布斯复仇,乔布斯选择了更体面的回归"},
+{s:"jobs",t:"morita",k:"mentor",d:"乔布斯的偶像:朝圣索尼工厂,痴迷Walkman与Trinitron,'苹果要做电子界的索尼'"},
+{s:"jobs",t:"page",k:"mentor",d:"乔布斯病中指点佩奇'专注,别摊大饼'——尽管他对安卓恨之入骨('不惜热核战争');佩奇称那次谈话影响至深"},
+{s:"jobs",t:"zuck",k:"mentor",d:"扎克伯格常向乔布斯请教,乔布斯带他散步指点'建一支使命驱动的团队';小扎称其为'不可思议的导师'"},
+{s:"woz",t:"hewlett",k:"work",d:"沃兹是惠普工程师,曾5次向惠普提交Apple I方案被拒,才与乔布斯创业——惠普就此错过整个PC时代"},
+{s:"jobs",t:"hewlett",k:"work",d:"12岁的乔布斯翻电话簿打给休利特要零件,得到零件外加一份暑期工——硅谷精神传承的著名开场"},
+{s:"hewlett",t:"packard",k:"cofounder",d:"1939年帕洛阿尔托车库538美元起家,扔硬币决定叫HP还是PH;'惠普之道'成为硅谷文化的源代码"},
+{s:"gates",t:"allen",k:"cofounder",d:"湖滨中学机房结缘,艾伦说服盖茨从哈佛辍学创办微软;后因股权与病中被议论裁撤生隙,晚年和解"},
+{s:"allen",t:"ballmer",k:"feud",d:"艾伦回忆录控诉:养病期间偷听到盖茨与鲍尔默商量稀释其股份,'我推门进去,他们道歉了,但我永远记得'"},
+{s:"gates",t:"buffett",k:"friend",d:"1991年被母亲强拉相识,一聊到天黑;此后三十年挚友+桥牌搭档,巴菲特把99%财富托付给盖茨基金会"},
+{s:"buffett",t:"munger",k:"cofounder",d:"60年黄金搭档:芒格把巴菲特从'捡烟蒂'拉向'伟大公司',奥马哈台上互怼是年度保留节目"},
+{s:"buffett",t:"duan",k:"friend",d:"段永平2006年62万美元拍下巴菲特午餐,自称'人生分水岭';他把'买股票就是买公司'刻进骨子里,也带去见了黄峥"},
+{s:"buffett",t:"cook",k:"invest",d:"伯克希尔重仓苹果(一度占组合近半),巴菲特称苹果是'我们的第三大业务',库克称巴菲特是'超级英雄'"},
+{s:"munger",t:"wangchuanfu",k:"invest",d:"芒格力荐巴菲特破例投资比亚迪:'王传福是爱迪生和韦尔奇的合体'——2.3亿美元最终翻了数十倍"},
+{s:"morita",t:"ibuka",k:"cofounder",d:"战后废墟上的双人组:井深大管技术理想,盛田昭夫卖向全世界;'索尼是我们友情的副产品'"},
+{s:"morita",t:"matsushita",k:"rival",d:"日本电子双雄:索尼的创新vs松下的模仿+规模(业界戏称'Maneshita抄下电器');Betamax败给VHS是经典一役"},
+{s:"matsushita",t:"inamori",k:"mentor",d:"稻盛和夫年轻时听松下'水库式经营'演讲醍醐灌顶,终生奉其为精神导师;后被并称'经营之神/之圣'"},
+{s:"inamori",t:"jackma",k:"mentor",d:"马云多次赴日拜会稻盛和夫论道'敬天爱人',公开称'稻盛先生是我真正敬佩的企业家'"},
+{s:"inamori",t:"son",k:"mentor",d:"孙正义是稻盛和夫'盛和塾'早期塾生,多次自称深受其经营哲学影响"},
+{s:"liuchuanzhi",t:"ren",k:"rival",d:"中国企业家教父辈的路线之争:联想'贸工技'vs华为'技工贸',三十年后胜负已分,两人却惺惺相惜"},
+{s:"liuchuanzhi",t:"yangyuanqing",k:"mentor",d:"柳传志钦点的接班人,两度交棒(2001/2011);'元庆是我最大的骄傲'"},
+{s:"liuchuanzhi",t:"leijun",k:"friend",d:"中关村两代旗手:雷军出道时柳传志已是教父,雷军执弟子礼多年,'柳总是中国企业家的标杆'"},
+{s:"liuchuanzhi",t:"jackma",k:"friend",d:"中国企业家俱乐部前后任核心:柳传志任首任理事长,马云接棒,公开互称'传志大哥/了不起的年轻人'"},
+{s:"dinglei",t:"duan",k:"friend",d:"2001年网易濒临退市,段永平听丁磊彻夜分析后百万美元抄底,两年赚百倍;两人结为挚友,常一起打高尔夫"},
+{s:"dinglei",t:"zhangchaoyang",k:"rival",d:"门户双雄:搜狐与网易从门户、邮箱打到游戏;张朝阳感叹'丁磊是我见过最会赚钱的人'"},
+{s:"dinglei",t:"xuxin",k:"invest",d:"1999年徐新天使投资网易,陪丁磊穿越互联网泡沫与退市危机,回报超800倍,'风投女王'成名作"},
+{s:"zhangchaoyang",t:"robinli",k:"rival",d:"搜狐搜狗与百度的搜索之战打了十几年;张朝阳自嘲'我们起了大早,赶了晚集'"},
+{s:"zhouhongyi",t:"ponyma",k:"feud",d:"3Q大战:2010年360与QQ逼全国用户'二选一',马化腾做出'最艰难的决定',官司打到最高法——中国互联网史最惨烈一战"},
+{s:"zhouhongyi",t:"robinli",k:"feud",d:"3B大战:360搜索偷袭百度,爬虫攻防+诉讼混战,周鸿祎'搜索老兵'再掀桌"},
+{s:"zhouhongyi",t:"leijun",k:"feud",d:"从盟友到死敌再到和解:360特供机对垒小米,微博骂战数年;2024年世纪和解,雷军送SU7,周鸿祎回赠新车"},
+{s:"chentianqiao",t:"ponyma",k:"rival",d:"网游王座交替:盛大曾是中国市值最高的互联网公司,《传奇》霸权终被腾讯游戏帝国取代,陈天桥急流勇退"},
+{s:"stanshih",t:"morris",k:"friend",d:"台湾科技业双教父:施振荣的品牌路线与张忠谋的代工路线,共同撑起台湾电子业的两条腿"},
+{s:"xuxin",t:"liuqiangdong",k:"invest",d:"2006年酒店长谈到凌晨两点,徐新10分钟决定投京东1000万美元(刘强东原本只要200万),陪跑十年回报超百倍"},
+{s:"zhanglei",t:"ponyma",k:"invest",d:"2005年高瓴成立后的第一笔投资:2000万美元全押腾讯——当时QQ还被视为'小孩玩意儿'"},
+{s:"zhanglei",t:"liuqiangdong",k:"invest",d:"'要么不投,要投就投3亿美元'——张磊逼刘强东选择重资产物流路线,京东自建物流由此定局"},
+{s:"zhanglei",t:"zengyuqun",k:"invest",d:"高瓴百亿级定增宁德时代,'重仓中国'的标志性一笔"},
+{s:"jerryyang",t:"jackma",k:"invest",d:"2005年雅虎10亿美元+雅虎中国换阿里40%股份——中国互联网史上最重要的一笔投资;杨致远后来力保马云渡过支付宝风波"},
+{s:"jerryyang",t:"son",k:"work",d:"孙正义是雅虎最早的大股东并合资雅虎日本;后来两人又同为阿里最重要的外部股东,利益缠绕二十年"},
+{s:"jerryyang",t:"page",k:"rival",d:"雅虎曾是谷歌的'老大哥'客户,2002年30亿美元收购谷歌被拒;此后攻守易形,雅虎节节败退"},
+{s:"jimclark",t:"a16z",k:"cofounder",d:"克拉克带着SGI的钱找到22岁的安德森创办网景,浏览器上市点燃互联网泡沫——'连续创业者'模板由此确立"},
+{s:"gates",t:"a16z",k:"feud",d:"浏览器战争:微软IE捆绑Windows绞杀网景,招致世纪反垄断案;安德森多年后调侃'盖茨教会了我什么叫平台权力'"},
+{s:"wangan",t:"gates",k:"rival",d:"王安电脑拒绝兼容IBM PC与微软生态,被PC+Windows浪潮碾碎;盖茨后来感叹:若王安当年转向PC软件,'可能就不会有今天的微软'"},
+{s:"morris",t:"watsonjr",k:"work",d:"张忠谋在德州仪器主管半导体业务时,IBM是最重要客户之一,他亲历System/360掀起的芯片需求浪潮"},
+];
+/* ================= 图谱渲染 ================= */
+const W=innerWidth,H=innerHeight;
+const pmap=new Map(PEOPLE.map(p=>[p.id,p]));
+const deg={};RELATIONS.forEach(r=>{deg[r.s]=(deg[r.s]||0)+1;deg[r.t]=(deg[r.t]||0)+1});
+const nodes=PEOPLE.map(p=>({...p,d:deg[p.id]||1}));
+const links=RELATIONS.map((r,i)=>({...r,source:r.s,target:r.t,i}));
+const adj=new Map();nodes.forEach(n=>adj.set(n.id,new Set()));
+const edgeOf=new Map();
+RELATIONS.forEach(r=>{adj.get(r.s).add(r.t);adj.get(r.t).add(r.s);
+edgeOf.set(r.s+"|"+r.t,r);edgeOf.set(r.t+"|"+r.s,r);});
+const R=d=>4.5+Math.sqrt(d)*2.2;
+const AVA={};
+document.getElementById("stats").textContent=`${nodes.length} 位人物 · ${links.length} 条关系`;
+
+const svg=d3.select("#graph").append("svg").attr("width",W).attr("height",H);
+const defs=svg.append("defs");
+const root=svg.append("g");
+const zoom=d3.zoom().scaleExtent([.25,6]).on("zoom",e=>{root.attr("transform",e.transform);updateLabels(e.transform.k);});
+svg.call(zoom);
+const linkSel=root.append("g").selectAll("line").data(links).join("line")
+.attr("stroke",l=>KINDS[l.k][1]).attr("stroke-opacity",.28).attr("stroke-width",1)
+.style("cursor","pointer")
+.on("mouseover",function(e,l){if(mode.pair)return;d3.select(this).attr("stroke-opacity",.95).attr("stroke-width",2.4);
+showTip(e,`<b>${pmap.get(l.s).zh} ↔ ${pmap.get(l.t).zh}</b><br><span style="color:${KINDS[l.k][1]}">●</span> ${KINDS[l.k][0]}<br><span class="tt-en">点击查看详情</span>`);})
+.on("mouseout",function(){hideTip();refresh();})
+.on("click",(e,l)=>{e.stopPropagation();selectEdge(l);});
+const nodeSel=root.append("g").selectAll("circle").data(nodes).join("circle")
+.attr("r",n=>R(n.d)).attr("fill",n=>GROUPS[n.g][1]).attr("stroke","#0a0d1a").attr("stroke-width",1.2)
+.style("cursor","pointer")
+.call(d3.drag().on("start",(e,n)=>{if(!e.active)sim.alphaTarget(.25).restart();n.fx=n.x;n.fy=n.y;})
+.on("drag",(e,n)=>{n.fx=e.x;n.fy=e.y;}).on("end",(e,n)=>{if(!e.active)sim.alphaTarget(0);n.fx=null;n.fy=null;}))
+.on("mouseover",(e,n)=>{showTip(e,(AVA[n.id]?'<img class="ttav" src="'+AVA[n.id]+'">':"")+`<b>${n.zh}</b> <span class="tt-en">${n.en}</span><br>${n.org}<br><span style="color:#aab3d6">${n.title}</span>`);if(!mode.pair&&!state.node&&!state.edge)softHL(n.id);})
+.on("mousemove",moveTip).on("mouseout",()=>{hideTip();if(!state.node&&!state.edge&&!mode.pair)refresh();})
+.on("click",(e,n)=>{e.stopPropagation();mode.pair?pickPair(n):selectNode(n.id,true);});
+const labelSel=root.append("g").selectAll("text").data(nodes).join("text")
+.text(n=>n.zh).attr("font-size",n=>Math.max(9,Math.min(15,7+n.d*.45)))
+.attr("fill","#dfe6ff").attr("stroke","#0a0d1a").attr("stroke-width",3).attr("paint-order","stroke")
+.attr("text-anchor","middle").style("pointer-events","none");
+
+const sim=d3.forceSimulation(nodes)
+.force("link",d3.forceLink(links).id(n=>n.id).distance(l=>l.source.g===l.target.g?55:95).strength(.25))
+.force("charge",d3.forceManyBody().strength(-150).distanceMax(420))
+.force("center",d3.forceCenter(W/2,H/2+20))
+.force("collide",d3.forceCollide(n=>R(n.d)+4))
+.force("x",d3.forceX(n=>W/2+Math.cos(n.g/7*2*Math.PI)*W*.16).strength(.045))
+.force("y",d3.forceY(n=>H/2+Math.sin(n.g/7*2*Math.PI)*H*.16).strength(.045))
+.on("tick",()=>{linkSel.attr("x1",l=>l.source.x).attr("y1",l=>l.source.y).attr("x2",l=>l.target.x).attr("y2",l=>l.target.y);
+nodeSel.attr("cx",n=>n.x).attr("cy",n=>n.y);labelSel.attr("x",n=>n.x).attr("y",n=>n.y-R(n.d)-4);});
+
+/* ============ 状态与高亮 ============ */
+const state={node:null,edge:null,chain:null,offG:new Set(),offK:new Set(),offE:new Set()};
+const mode={pair:false,A:null,B:null,path:null};
+let zk=1;
+function updateLabels(k){zk=k;labelSel.attr("display",n=>!visN(n)?"none":(n.d>=8||k>=1.25?null:"none"));}
+function visN(n){return !state.offG.has(n.g)&&!state.offE.has(n.era);}
+function visL(l){return visN(l.source)&&visN(l.target)&&!state.offK.has(l.k);}
+function refresh(){
+const hl=computeHL();
+nodeSel.attr("display",n=>visN(n)?null:"none")
+.attr("opacity",n=>!hl?1:(hl.n.has(n.id)?1:.12))
+.attr("stroke",n=>hl&&hl.core&&hl.core.has(n.id)?"#fff":(AVA[n.id]?GROUPS[n.g][1]:"#0a0d1a"))
+.attr("stroke-width",n=>hl&&hl.core&&hl.core.has(n.id)?2.4:(AVA[n.id]?1.6:1.2));
+linkSel.attr("display",l=>visL(l)?null:"none")
+.attr("stroke-opacity",l=>!hl?.28:(hl.l.has(l.i)?.95:.05))
+.attr("stroke-width",l=>!hl?1:(hl.l.has(l.i)?2.6:.7));
+labelSel.attr("opacity",n=>!hl?1:(hl.n.has(n.id)?1:.1));
+updateLabels(zk);}
+function computeHL(){
+if(state.chain)return state.chain;
+if(mode.pair&&mode.path)return mode.path;
+if(state.edge){const l=state.edge;return{n:new Set([l.s,l.t]),l:new Set([l.i]),core:new Set([l.s,l.t])};}
+if(state.node){const id=state.node,ns=new Set([id]);adj.get(id).forEach(x=>ns.add(x));
+const ls=new Set();links.forEach(l=>{if(l.s===id||l.t===id)ls.add(l.i);});
+return{n:ns,l:ls,core:new Set([id])};}
+return null;}
+function softHL(id){const ns=new Set([id]);adj.get(id).forEach(x=>ns.add(x));
+nodeSel.attr("opacity",n=>ns.has(n.id)?1:.15);
+linkSel.attr("stroke-opacity",l=>(l.s===id||l.t===id)?.85:.06).attr("stroke-width",l=>(l.s===id||l.t===id)?2.2:.7);
+labelSel.attr("opacity",n=>ns.has(n.id)?1:.1);}
+
+/* ============ 侧栏 ============ */
+const panel=document.getElementById("panel"),phc=document.getElementById("pheadc"),pb=document.getElementById("pbody");
+document.getElementById("pclose").onclick=()=>{panel.classList.remove("show");state.node=null;state.edge=null;state.chain=null;refresh();};
+function kb(k){return `<span class="kbadge" style="background:${KINDS[k][1]}">${KINDS[k][0]}</span>`;}
+function selectNode(id,zoomTo){state.node=id;state.edge=null;state.chain=null;pb.scrollTop=0;const p=pmap.get(id);
+phc.innerHTML=(AVA[id]?'<img class="phav" src="'+AVA[id]+'">':"")+`<div class="pname">${p.zh}</div><div class="pen">${p.en} · ${p.org}</div><div class="ptitle">${p.title}</div>
+<span class="tag" style="background:${GROUPS[p.g][1]}22;color:${GROUPS[p.g][1]};border:1px solid ${GROUPS[p.g][1]}55">${GROUPS[p.g][0]}</span>
+<span class="tag" style="background:#222a4d;color:#aab3d6">${deg[id]||0} 条关系</span><span class="tag" style="background:#222a4d;color:#aab3d6">${(ERAS[p.era]||["—"])[0]}</span>`;
+const rels=RELATIONS.filter(r=>r.s===id||r.t===id);
+const order={family:0,cofounder:1,mentor:2,feud:3,friend:4,rival:5,invest:6,ally:7,work:8};
+rels.sort((a,b)=>order[a.k]-order[b.k]);
+pb.innerHTML=`<div class="sec">关系网络 (${rels.length})</div>`+rels.map(r=>{
+const o=pmap.get(r.s===id?r.t:r.s);
+return `<div class="rel" data-s="${r.s}" data-t="${r.t}"><div class="rh">${kb(r.k)} ${o.zh} <span style="color:var(--dim);font-size:11px">${o.en}</span></div><div class="rd">${r.d}</div></div>`;}).join("");
+pb.querySelectorAll(".rel").forEach(el=>el.onclick=()=>{const l=links.find(x=>x.s===el.dataset.s&&x.t===el.dataset.t);if(l)selectEdge(l);});
+panel.classList.add("show");refresh();
+if(zoomTo){const n=nodes.find(x=>x.id===id);
+svg.transition().duration(650).call(zoom.transform,d3.zoomIdentity.translate(W/2-n.x*1.6,H/2-n.y*1.6).scale(1.6));}}
+function selectEdge(l){state.edge=l;state.node=null;state.chain=null;pb.scrollTop=0;
+const a=pmap.get(l.s),b=pmap.get(l.t);
+phc.innerHTML=`<div class="pname" style="font-size:16px">${a.zh} ↔ ${b.zh}</div><div class="pen">${a.en} ↔ ${b.en}</div>
+<span class="tag" style="background:${KINDS[l.k][1]}22;color:${KINDS[l.k][1]};border:1px solid ${KINDS[l.k][1]}55">${KINDS[l.k][0]}</span>`;
+pb.innerHTML=`<div class="sec">关系详情</div><div class="rel" style="cursor:default"><div class="rd" style="font-size:13px;color:#dfe6ff">${l.d}</div></div>
+<div class="sec">两位人物</div>`+[a,b].map(p=>`<div class="rel" data-id="${p.id}"><div class="rh">${p.zh} <span style="color:var(--dim);font-size:11px">${p.en}</span></div><div class="rd">${p.org} · ${p.title}</div></div>`).join("");
+pb.querySelectorAll(".rel[data-id]").forEach(el=>el.onclick=()=>selectNode(el.dataset.id,true));
+panel.classList.add("show");refresh();}
+
+/* ============ 双人路径 ============ */
+const pathbar=document.getElementById("pathbar"),slotA=document.getElementById("slotA"),slotB=document.getElementById("slotB");
+document.getElementById("modeBtn").onclick=()=>{mode.pair=!mode.pair;
+document.getElementById("modeBtn").classList.toggle("active",mode.pair);
+pathbar.style.display=mode.pair?"flex":"none";
+if(!mode.pair){mode.A=mode.B=mode.path=null;slotA.textContent="点选第一人";slotB.textContent="点选第二人";slotA.classList.remove("filled");slotB.classList.remove("filled");}
+state.node=null;state.edge=null;state.chain=null;panel.classList.remove("show");refresh();};
+document.getElementById("pathExit").onclick=()=>document.getElementById("modeBtn").click();
+document.getElementById("pathClear").onclick=()=>{mode.A=mode.B=mode.path=null;slotA.textContent="点选第一人";slotB.textContent="点选第二人";slotA.classList.remove("filled");slotB.classList.remove("filled");panel.classList.remove("show");refresh();};
+function pickPair(n){
+if(!mode.A||mode.B){mode.A=n.id;mode.B=null;mode.path=null;slotA.textContent=n.zh;slotA.classList.add("filled");slotB.textContent="点选第二人";slotB.classList.remove("filled");refresh();}
+else if(n.id!==mode.A){mode.B=n.id;slotB.textContent=n.zh;slotB.classList.add("filled");runPath();}}
+function bfs(a,b){const prev=new Map([[a,null]]);let q=[a];
+while(q.length){const nq=[];for(const u of q){if(u===b){const path=[];let x=b;while(x!==null){path.unshift(x);x=prev.get(x);}return path;}
+for(const v of adj.get(u))if(!prev.has(v)){prev.set(v,u);nq.push(v);}}q=nq;}return null;}
+function runPath(){const path=bfs(mode.A,mode.B);
+const a=pmap.get(mode.A),b=pmap.get(mode.B);
+if(!path){mode.path={n:new Set([mode.A,mode.B]),l:new Set(),core:new Set([mode.A,mode.B])};
+phc.innerHTML=`<div class="pname" style="font-size:16px">${a.zh} ↔ ${b.zh}</div>`;
+pb.innerHTML=`<div class="sec">两人在图谱中暂无可达关系链</div>`;panel.classList.add("show");refresh();return;}
+const ns=new Set(path),ls=new Set();const segs=[];
+for(let i=0;i<path.length-1;i++){const r=edgeOf.get(path[i]+"|"+path[i+1]);
+const l=links.find(x=>x.s===r.s&&x.t===r.t);ls.add(l.i);segs.push({from:pmap.get(path[i]),to:pmap.get(path[i+1]),r});}
+mode.path={n:ns,l:ls,core:new Set([mode.A,mode.B])};
+phc.innerHTML=`<div class="pname" style="font-size:16px">${a.zh} → ${b.zh}</div><div class="pen">${path.length-1===1?"存在直接关系":`通过 ${path.length-2} 位中间人相连`} · 关系链 ${path.length-1} 步</div>`;
+pb.innerHTML=`<div class="sec">关系链路</div>`+segs.map((s,i)=>`<div class="rel" style="cursor:default"><div class="rh"><span style="color:var(--dim)">${i+1}.</span> ${s.from.zh} ${kb(s.r.k)} ${s.to.zh}</div><div class="rd">${s.r.d}</div></div>`).join("");
+panel.classList.add("show");refresh();}
+
+/* ============ 搜索 ============ */
+const inp=document.getElementById("search"),sugg=document.getElementById("sugg");
+inp.oninput=()=>{const q=inp.value.trim().toLowerCase();if(!q){sugg.style.display="none";return;}
+const hits=PEOPLE.filter(p=>p.zh.toLowerCase().includes(q)||p.en.toLowerCase().includes(q)||p.org.toLowerCase().includes(q)).slice(0,12);
+sugg.innerHTML=hits.map(p=>`<div data-id="${p.id}"><span>${p.zh} <span class="o">${p.en}</span></span><span class="o">${p.org}</span></div>`).join("")||`<div>无结果</div>`;
+sugg.style.display="block";
+sugg.querySelectorAll("[data-id]").forEach(el=>el.onclick=()=>{const id=el.dataset.id;sugg.style.display="none";inp.value="";
+if(mode.pair){pickPair(nodes.find(n=>n.id===id));}else selectNode(id,true);});};
+document.addEventListener("click",e=>{if(!e.target.closest(".searchwrap"))sugg.style.display="none";});
+
+/* ============ 图例与筛选 ============ */
+const lg=document.getElementById("legend");
+lg.innerHTML=`<div class="ltitle">阵营(点击隐藏/显示)</div>`+Object.entries(GROUPS).map(([g,[name,c]])=>
+`<div class="lrow" data-g="${g}"><span class="dot" style="background:${c}"></span>${name}</div>`).join("")
++`<div class="ltitle" style="margin-top:8px">关系类型(点击筛选)</div>`+Object.entries(KINDS).map(([k,[name,c]])=>
+`<div class="lrow" data-k="${k}"><span class="dot" style="background:${c};border-radius:2px;height:3px"></span>${name}</div>`).join("");
+lg.querySelectorAll("[data-g]").forEach(el=>el.onclick=()=>{const g=+el.dataset.g;
+state.offG.has(g)?state.offG.delete(g):state.offG.add(g);el.classList.toggle("off");refresh();});
+lg.querySelectorAll("[data-k]").forEach(el=>el.onclick=()=>{const k=el.dataset.k;
+state.offK.has(k)?state.offK.delete(k):state.offK.add(k);el.classList.toggle("off");refresh();});
+
+/* ============ 其他 ============ */
+const tip=document.getElementById("tooltip");
+function showTip(e,html){tip.innerHTML=html;tip.style.display="block";moveTip(e);}
+function moveTip(e){const x=Math.min(e.clientX+14,innerWidth-310),y=Math.min(e.clientY+14,innerHeight-110);tip.style.left=x+"px";tip.style.top=y+"px";}
+function hideTip(){tip.style.display="none";}
+svg.on("click",()=>{if(mode.pair)return;state.node=null;state.edge=null;state.chain=null;panel.classList.remove("show");refresh();});
+document.getElementById("resetBtn").onclick=()=>{state.node=null;state.edge=null;state.chain=null;state.offG.clear();state.offK.clear();state.offE.clear();document.querySelectorAll("#erabar .echip").forEach(el=>el.classList.remove("off"));
+lg.querySelectorAll(".lrow").forEach(el=>el.classList.remove("off"));
+panel.classList.remove("show");svg.transition().duration(600).call(zoom.transform,d3.zoomIdentity);refresh();};
+addEventListener("resize",()=>{svg.attr("width",innerWidth).attr("height",innerHeight);
+sim.force("center",d3.forceCenter(innerWidth/2,innerHeight/2+20)).alpha(.3).restart();});
+
+/* ============ 隐藏关系洞察 ============ */
+const INSIGHTS=[
+{t:"AI芯片大战,其实是一场'家族内战'",p:["jensen","lisasu"],n:"英伟达与AMD在AI芯片市场你死我活,但黄仁勋是苏姿丰的远房表亲长辈,两人都来自台南——全球算力霸权之争,是一个家族的内部赛跑。"},
+{t:"从盖茨家离婚案到DeepSeek,只隔两个人",p:["melinda","gates","altman","liangwf"],n:"梅琳达与盖茨世纪离婚;盖茨是奥特曼最重要的背书人;而奥特曼最忌惮的搅局者,是杭州的梁文锋。看似两个世界,实际三步可达。"},
+{t:"马斯克与扎克伯格的第一桶金来自同一个人",p:["musk","thiel","zuck"],n:"约架笼斗的两大宿敌,起点惊人一致:蒂尔在PayPal政变中接管了马斯克的公司,又用50万美元买下Facebook最早的10%股份。硅谷的恩怨,源头常是同一笔钱。"},
+{t:"两大宿敌之间,站着一位最私人的'中间人'",p:["altman","zilis","musk"],n:"齐里斯曾任OpenAI董事七年,如今是Neuralink高管,还是马斯克多名子女的母亲——马斯克与奥特曼的世纪决裂里,她是最微妙的交叉点。"},
+{t:"苹果的设计灵魂,正在为对手造硬件",p:["cook","ive","altman"],n:"乔尼·艾维与库克共事二十余年后出走,他的io团队2025年被OpenAI收购——库克与奥特曼台面上是Siri合作伙伴,台面下是'后iPhone时代'的暗战。"},
+{t:"一个新加坡人,串起俄、中、美三大资本圈",p:["milner","chew","leijun"],n:"周受资先在米尔纳的DST亲手促成对小米的押注,再当雷军的CFO,如今替张一鸣守TikTok直面美国国会——他是整张图谱里最隐蔽的'超级连接器'。"},
+{t:"罢免奥特曼的人,是诺奖得主最骄傲的学生",p:["hinton","ilya","altman"],n:"辛顿公开说:'我为我的学生解雇了奥特曼而骄傲。'深度学习的师承脉络,直接决定了2023年OpenAI政变之夜的阵营划分。"},
+{t:"隐身的段永平,离马斯克只有一步",p:["duan","leijun","musk"],n:"从不露面的OPPO/vivo幕后教父,与马斯克之间只隔一个雷军——而雷军的小米SU7,恰是特斯拉在中国最头疼的对手。"},
+{t:"马云的贵人,正给奥特曼下注",p:["jackma","son","altman"],n:"孙正义投马云2000万美元赚到千倍回报;二十五年后,他把更大的赌注(Stargate数千亿美元)押给了奥特曼。亚洲资本的接力棒,从电商传到了AGI。"},
+{t:"被Meta开除的人,如今Meta反过来求合作",p:["thiel","luckey","zuck"],n:"拉奇因政治风波被扎克伯格扫地出门,蒂尔的钱帮他东山再起做军工Anduril;2025年Meta与Anduril签下军用XR合作——世纪和解的背后全是利益。"},
+{t:"红杉'分家'后,两端各站着一个超级APP",p:["musk","botha","neilshen","yiming"],n:"博塔是马斯克PayPal时代的CFO,执掌红杉美国;沈南鹏带HongShan独立,是字节跳动最大外部赢家——同一家基金裂出的两端,分别连着X和TikTok。"},
+{t:"奥特曼的万亿芯片梦,踩在94岁老人的体系上",p:["altman","ccwei","morris"],n:"OpenAI自研芯片靠台积电3nm;而台积电的代工帝国,是张忠谋56岁创业留下的遗产。AGI的物理底座,建在上个时代的肩膀上。"},
+{t:"乔布斯的两份'遗产',一份在苹果,一份在OpenAI",p:["laurene","ive","altman"],n:"乔布斯遗孀劳伦娜是艾维出走后最重要的支持者;而艾维的设计团队,如今在为奥特曼打造'后iPhone时代'的设备。乔布斯的美学血脉,正流向苹果的对手。"},
+{t:"ARM把自己的大客户告上了法庭",p:["son","renehaas","amon"],n:"孙正义的Arm起诉高通授权违约,索要的正是高通的命脉;而高通每年又给Arm贡献巨额授权费——半导体世界最拧巴的一对'互相喂饭的仇人'。"},
+{t:"滴滴干掉Uber中国的人,是马云的旧部",p:["kalanick","chengwei","jackma"],n:"卡兰尼克在中国烧掉20亿美元,最终败给的程维,出身支付宝地推体系——硅谷霸主输给的,其实是阿里系的执行力。"},
+{t:"政变之夜的临时CEO,来自游戏直播圈",p:["altman","shear","ilya"],n:"罢免奥特曼后,苏茨克维主导的董事会连夜请来Twitch创始人希尔救场;72小时后奥特曼王者归来,希尔成为AI史上任期最短的CEO。"},
+{t:"马斯克的公司名,纪念一个被摩根'断电'的天才",p:["musk","nikolatesla","jpmorgan"],n:"特斯拉公司以尼古拉·特斯拉命名;当年特斯拉的无线电力之梦,正是被金主摩根掐断资金而破灭。一百年后,疯狂工程师终于自己当上了金主。"},
+{t:"'八叛徒'的背叛,两代之后传到了库克手里",p:["shockley","noyce","jobs","cook"],n:"肖克利骂诺伊斯们是叛徒;诺伊斯后来成了乔布斯的人生导师;乔布斯又把苹果交给库克。硅谷的师承链条,始于一场背叛。"},
+{t:"芒格晚年最得意的一注,押给了王传福",p:["buffett","munger","wangchuanfu"],n:"芒格说服巴菲特破例投资比亚迪,称王传福是'爱迪生和韦尔奇的合体'——2.3亿美元翻了数十倍,成为伯克希尔最成功的科技押注。"},
+{t:"乔布斯的偶像,是一个日本人",p:["cook","jobs","morita"],n:"乔布斯公开承认盛田昭夫是他的偶像,索尼工厂之行塑造了苹果的工业美学。库克手里的苹果,血脉里有索尼的基因。"},
+{t:"阿里巴巴的命,是软银和雅虎两次'续'出来的",p:["son","jackma","jerryyang"],n:"2000年孙正义6分钟拍板2000万美元;2005年杨致远10亿美元换40%——没有这两笔钱就没有阿里。而软银和雅虎自己,也都靠这两笔投资续了命。"}
+];
+const PRIV=new Set(["family","friend","mentor","feud"]);
+function chainSegs(p){const segs=[];for(let i=0;i<p.length-1;i++){const r=edgeOf.get(p[i]+"|"+p[i+1]);if(!r)return null;segs.push({a:pmap.get(p[i]),b:pmap.get(p[i+1]),r});}return segs;}
+function setChain(p){const ns=new Set(p),ls=new Set();
+for(let i=0;i<p.length-1;i++){const r=edgeOf.get(p[i]+"|"+p[i+1]);const l=links.find(x=>x.s===r.s&&x.t===r.t);ls.add(l.i);}
+state.chain={n:ns,l:ls,core:new Set([p[0],p[p.length-1]])};state.node=null;state.edge=null;refresh();}
+function showInsightList(){state.chain=null;state.node=null;state.edge=null;pb.scrollTop=0;
+phc.innerHTML=`<div class="pname">✦ 隐藏关系</div><div class="pen">看似无关的人,其实暗中相连 · 点击查看路径</div>`;
+pb.innerHTML=`<div class="rel" id="rndBtn" style="border-color:#4dd9a8"><div class="rh" style="color:#4dd9a8">⟳ 随机发现一条意外连接</div><div class="rd">从25万+种两两组合中,挖一条带私人纽带的隐藏路径</div></div>
+<div class="sec">精选洞察 (${INSIGHTS.length})</div>`+INSIGHTS.map((it,i)=>
+`<div class="rel" data-i="${i}"><div class="rh">${it.t}</div><div class="rd">${it.p.map(id=>pmap.get(id).zh).join(" → ")}</div></div>`).join("");
+document.getElementById("rndBtn").onclick=showRandom;
+pb.querySelectorAll(".rel[data-i]").forEach(el=>el.onclick=()=>showInsight(+el.dataset.i));
+panel.classList.add("show");refresh();}
+function renderChainDetail(title,note,p){const segs=chainSegs(p);if(!segs)return;
+setChain(p);pb.scrollTop=0;
+phc.innerHTML=`<div class="pname" style="font-size:16px">${title}</div><div class="pen">${p.map(id=>pmap.get(id).zh).join(" → ")}</div>`;
+pb.innerHTML=`<div class="rel" style="cursor:default;border-color:#4d5a8f"><div class="rd" style="font-size:13px;color:#dfe6ff">${note}</div></div>
+<div class="sec">关系链路</div>`+segs.map((s,i)=>`<div class="rel" style="cursor:default"><div class="rh"><span style="color:var(--dim)">${i+1}.</span> ${s.a.zh} ${kb(s.r.k)} ${s.b.zh}</div><div class="rd">${s.r.d}</div></div>`).join("")
++`<div class="rel" id="backIns" style="text-align:center"><div class="rh" style="justify-content:center">← 返回洞察列表</div></div>`;
+document.getElementById("backIns").onclick=showInsightList;
+panel.classList.add("show");}
+function showInsight(i){const it=INSIGHTS[i];renderChainDetail(it.t,it.n,it.p);}
+function showRandom(){
+for(let tries=0;tries<600;tries++){
+const a=nodes[Math.random()*nodes.length|0],b=nodes[Math.random()*nodes.length|0];
+if(a.id===b.id||a.g===b.g||adj.get(a.id).has(b.id))continue;
+const p=bfs(a.id,b.id);if(!p||p.length<3||p.length>4)continue;
+let priv=false;for(let i=0;i<p.length-1;i++)if(PRIV.has(edgeOf.get(p[i]+"|"+p[i+1]).k))priv=true;
+if(!priv)continue;
+renderChainDetail(`${a.zh} 和 ${b.zh},看似无关…`,`一位${GROUPS[a.g][0]}阵营的${a.org.split(" ")[0]}掌门,和一位${GROUPS[b.g][0]}阵营的人物,中间只隔 ${p.length-2} 个人,而且路径上藏着私人纽带。`,p);return;}
+showInsightList();}
+document.getElementById("insightBtn").onclick=()=>{if(mode.pair)document.getElementById("modeBtn").click();showInsightList();};
+
+/* ============ 时代筛选条 ============ */
+const eb=document.getElementById("erabar");
+eb.innerHTML=Object.entries(ERAS).map(([k,v])=>`<div class="echip" data-e="${k}">${v[0]}<small>${v[1]}</small></div>`).join("");
+eb.querySelectorAll(".echip").forEach(el=>{el.onclick=()=>{const k=el.dataset.e;state.offE.has(k)?state.offE.delete(k):state.offE.add(k);el.classList.toggle("off");refresh();};});
+/* ============ Wikipedia 头像 ============ */
+function setAva(id,url){AVA[id]=url;
+defs.append("pattern").attr("id","pat-"+id).attr("patternContentUnits","objectBoundingBox").attr("width",1).attr("height",1)
+.append("image").attr("href",url).attr("width",1).attr("height",1).attr("preserveAspectRatio","xMidYMid slice");
+nodeSel.filter(d=>d.id===id).attr("fill","url(#pat-"+id+")");}
+(async function(){let cache={};try{cache=JSON.parse(localStorage.getItem("tpm_ava_v2")||"{}")}catch(e){}
+nodes.forEach(n=>{if(cache[n.id])setAva(n.id,cache[n.id])});
+if(Object.keys(cache).length)refresh();
+const todo=nodes.filter(n=>!cache[n.id]);let qi=0,got=0;
+async function one(n){const tries=[];if(n.w)tries.push(["en",n.w]);tries.push(["en",n.en]);if(!/·/.test(n.zh))tries.push(["zh",n.zh]);
+for(const[lg,t]of tries){try{
+const r=await fetch("https://"+lg+".wikipedia.org/api/rest_v1/page/summary/"+encodeURIComponent(t.replace(/ /g,"_")));
+if(!r.ok)continue;const j=await r.json();const u=j.thumbnail&&j.thumbnail.source;
+if(u){cache[n.id]=u;setAva(n.id,u);got++;return;}}catch(e){}}}
+await Promise.all(Array.from({length:8},async()=>{while(qi<todo.length){await one(todo[qi++]);}}));
+try{localStorage.setItem("tpm_ava_v2",JSON.stringify(cache))}catch(e){}
+if(got)refresh();})();
+updateLabels(1);refresh();
+</script>
+</body>
+</html>
