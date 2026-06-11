@@ -4,6 +4,20 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>全球科技权力图谱 · Tech Power Map</title>
+<meta name="description" content="一张可交互的科技商业人物关系网络:187 位人物 · 455 条关系,横跨工业时代到 AI 时代。点人物看关系网,查两人最短关系链,挖隐藏连接。">
+<!-- Open Graph / 社交分享卡片 -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Tech Power Map">
+<meta property="og:title" content="全球科技权力图谱 · Tech Power Map">
+<meta property="og:description" content="187 位科技商业人物 · 455 条关系,从洛克菲勒到奥特曼。点人物看关系网,查两人最短关系链,挖隐藏连接。">
+<meta property="og:url" content="https://ryanliangwh.github.io/tech-power-map/">
+<meta property="og:image" content="https://ryanliangwh.github.io/tech-power-map/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="全球科技权力图谱 · Tech Power Map">
+<meta name="twitter:description" content="187 位科技商业人物 · 455 条关系,从洛克菲勒到奥特曼。">
+<meta name="twitter:image" content="https://ryanliangwh.github.io/tech-power-map/og.png">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 <style>
 :root{--bg:#0a0d1a;--panel:#11162a;--panel2:#171d36;--line:#2a3252;--txt:#e8ecf8;--dim:#8a93b8;
@@ -32,6 +46,10 @@ border-radius:14px;z-index:25;display:none;flex-direction:column;backdrop-filter
 #panel.show{display:flex}
 #phead{padding:14px 16px 10px;border-bottom:1px solid var(--line);position:relative;flex-shrink:0}
 #pclose{position:absolute;top:10px;right:12px;background:none;border:none;color:var(--dim);font-size:18px;cursor:pointer}
+#pshare{position:absolute;top:9px;right:40px;background:none;border:none;font-size:15px;cursor:pointer;opacity:.8}
+#pshare:hover{opacity:1}
+#pshare.ok{opacity:1}
+#expBtn{display:block;width:100%;margin-top:4px;text-align:center;border-color:#4dd9a8;color:#9ff0cf}
 #pbody{padding:12px 16px;overflow-y:auto;flex:1 1 0;min-height:0;max-height:calc(100vh - 200px);overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
 #pbody::-webkit-scrollbar{width:10px}
 #pbody::-webkit-scrollbar-thumb{background:#3a4570;border-radius:5px;border:2px solid #11162a}
@@ -74,7 +92,33 @@ border-radius:12px;padding:9px 16px;font-size:13px;display:none;align-items:cent
 .echip.off{opacity:.3}
 .ttav{width:46px;height:46px;border-radius:50%;object-fit:cover;float:left;margin:2px 8px 2px 0;border:2px solid #2a3252}
 .phav{width:54px;height:54px;border-radius:50%;object-fit:cover;float:right;border:2px solid #2a3252;margin-left:8px}
-@media(max-width:760px){#panel{width:calc(100vw - 24px)}#search{width:150px}}
+.mfab{display:none;position:fixed;left:8px;bottom:12px;z-index:16;gap:6px}
+.mfab .btn{background:rgba(17,22,42,.92);backdrop-filter:blur(6px)}
+@media(max-width:760px){
+  #topbar{gap:7px;padding:8px 10px}
+  #topbar h1{font-size:15px;width:100%;margin-bottom:2px}
+  #topbar h1 span{display:none}
+  .searchwrap{flex:1 1 120px}
+  #search{width:100%}
+  .btn{padding:8px 11px;font-size:12px}
+  #hint{display:none}
+  #stats{order:9;width:100%;margin:3px 0 0;text-align:right}
+  /* 底部抽屉式详情面板 */
+  #panel{top:auto;left:0;right:0;bottom:0;width:100%;max-height:74vh;height:auto;
+    border-radius:16px 16px 0 0;border-bottom:none}
+  #panel::before{content:"";position:absolute;top:7px;left:50%;transform:translateX(-50%);
+    width:40px;height:4px;border-radius:2px;background:#3a4570;z-index:2}
+  #phead{padding-top:18px}
+  #pbody{max-height:calc(74vh - 104px)}
+  /* 图例 / 时代默认收起, 由浮动按钮唤出 */
+  #legend{left:8px;bottom:58px;font-size:11px;max-height:48vh;overflow:auto;display:none}
+  body.show-leg #legend{display:block}
+  #erabar{left:8px;right:8px;bottom:58px;transform:none;max-width:none;flex-wrap:nowrap;
+    overflow-x:auto;justify-content:flex-start;display:none;-webkit-overflow-scrolling:touch}
+  body.show-era #erabar{display:flex}
+  .mfab{display:flex}
+  #pathbar{top:auto;bottom:58px;left:8px;right:8px;transform:none;flex-wrap:wrap;justify-content:center}
+}
 </style>
 </head>
 <body>
@@ -89,9 +133,10 @@ border-radius:12px;padding:9px 16px;font-size:13px;display:none;align-items:cent
 </div>
 <div id="pathbar"><b>双人关系查询:</b><span class="slot" id="slotA">点选第一人</span>→<span class="slot" id="slotB">点选第二人</span><button class="btn" id="pathClear">清空</button><button class="btn" id="pathExit">退出</button></div>
 <div id="graph"></div>
+<div class="mfab"><button class="btn" id="legBtn">⚑ 图例</button><button class="btn" id="eraBtn">🕘 时代</button></div>
 <div id="legend"></div>
 <div id="erabar"></div>
-<div id="panel"><div id="phead"><button id="pclose">✕</button><div id="pheadc"></div></div><div id="pbody"></div></div>
+<div id="panel"><div id="phead"><button id="pshare" title="复制分享链接">🔗</button><button id="pclose">✕</button><div id="pheadc"></div></div><div id="pbody"></div></div>
 <div id="tooltip"></div>
 <script src="./data.js"></script>
 <script>
@@ -120,7 +165,8 @@ const adj=new Map();nodes.forEach(n=>adj.set(n.id,new Set()));
 const edgeOf=new Map();
 RELATIONS.forEach(r=>{adj.get(r.s).add(r.t);adj.get(r.t).add(r.s);
 edgeOf.set(r.s+"|"+r.t,r);edgeOf.set(r.t+"|"+r.s,r);});
-const R=d=>4.5+Math.sqrt(d)*2.2;
+const TOUCH=matchMedia("(pointer:coarse)").matches;
+const R=d=>(TOUCH?7:4.5)+Math.sqrt(d)*2.2;
 const AVA={};
 document.getElementById("stats").textContent=`${nodes.length} 位人物 · ${links.length} 条关系`;
 
@@ -192,7 +238,7 @@ labelSel.attr("opacity",n=>ns.has(n.id)?1:.1);}
 
 /* ============ 侧栏 ============ */
 const panel=document.getElementById("panel"),phc=document.getElementById("pheadc"),pb=document.getElementById("pbody");
-document.getElementById("pclose").onclick=()=>{panel.classList.remove("show");state.node=null;state.edge=null;state.chain=null;refresh();};
+document.getElementById("pclose").onclick=()=>{panel.classList.remove("show");state.node=null;state.edge=null;state.chain=null;clearHash();refresh();};
 function kb(k){return `<span class="kbadge" style="background:${KINDS[k][1]}">${KINDS[k][0]}</span>`;}
 function selectNode(id,zoomTo){state.node=id;state.edge=null;state.chain=null;pb.scrollTop=0;const p=pmap.get(id);
 phc.innerHTML=(AVA[id]?'<img class="phav" src="'+AVA[id]+'">':"")+`<div class="pname">${p.zh}</div><div class="pen">${p.en} · ${p.org}</div><div class="ptitle">${p.title}</div>
@@ -204,11 +250,14 @@ rels.sort((a,b)=>order[a.k]-order[b.k]);
 pb.innerHTML=`<div class="sec">关系网络 (${rels.length})</div>`+rels.map(r=>{
 const o=pmap.get(r.s===id?r.t:r.s);
 return `<div class="rel" data-s="${r.s}" data-t="${r.t}"><div class="rh">${kb(r.k)} ${o.zh} <span style="color:var(--dim);font-size:11px">${o.en}</span><span class="cdot" style="background:${confOf(r)[1]}" title="可信度: ${confOf(r)[0]}"></span></div><div class="rd">${r.d}</div></div>`;}).join("");
+pb.insertAdjacentHTML("beforeend",`<button class="btn" id="expBtn">⬇ 导出 TA 的关系网 (PNG)</button>`);
 pb.querySelectorAll(".rel").forEach(el=>el.onclick=()=>{const l=links.find(x=>x.s===el.dataset.s&&x.t===el.dataset.t);if(l)selectEdge(l);});
+document.getElementById("expBtn").onclick=()=>exportEgo(id);
+setHash("p="+id);
 panel.classList.add("show");refresh();
-if(zoomTo){const n=nodes.find(x=>x.id===id);
-svg.transition().duration(650).call(zoom.transform,d3.zoomIdentity.translate(W/2-n.x*1.6,H/2-n.y*1.6).scale(1.6));}}
-function selectEdge(l){state.edge=l;state.node=null;state.chain=null;pb.scrollTop=0;
+if(zoomTo){const n=nodes.find(x=>x.id===id);const cy=TOUCH?H*0.2:H/2;
+svg.transition().duration(650).call(zoom.transform,d3.zoomIdentity.translate(W/2-n.x*1.6,cy-n.y*1.6).scale(1.6));}}
+function selectEdge(l){state.edge=l;state.node=null;state.chain=null;pb.scrollTop=0;setHash("e="+l.s+"~"+l.t);
 const a=pmap.get(l.s),b=pmap.get(l.t);
 phc.innerHTML=`<div class="pname" style="font-size:16px">${a.zh} ↔ ${b.zh}</div><div class="pen">${a.en} ↔ ${b.en}</div>
 <span class="tag" style="background:${KINDS[l.k][1]}22;color:${KINDS[l.k][1]};border:1px solid ${KINDS[l.k][1]}55">${KINDS[l.k][0]}</span> ${confBadge(l)}`;
@@ -268,15 +317,57 @@ state.offK.has(k)?state.offK.delete(k):state.offK.add(k);el.classList.toggle("of
 
 /* ============ 其他 ============ */
 const tip=document.getElementById("tooltip");
-function showTip(e,html){tip.innerHTML=html;tip.style.display="block";moveTip(e);}
+function showTip(e,html){if(TOUCH)return;tip.innerHTML=html;tip.style.display="block";moveTip(e);}
 function moveTip(e){const x=Math.min(e.clientX+14,innerWidth-310),y=Math.min(e.clientY+14,innerHeight-110);tip.style.left=x+"px";tip.style.top=y+"px";}
 function hideTip(){tip.style.display="none";}
-svg.on("click",()=>{if(mode.pair)return;state.node=null;state.edge=null;state.chain=null;panel.classList.remove("show");refresh();});
+svg.on("click",()=>{if(mode.pair)return;state.node=null;state.edge=null;state.chain=null;panel.classList.remove("show");clearHash();refresh();});
 document.getElementById("resetBtn").onclick=()=>{state.node=null;state.edge=null;state.chain=null;state.offG.clear();state.offK.clear();state.offE.clear();document.querySelectorAll("#erabar .echip").forEach(el=>el.classList.remove("off"));
 lg.querySelectorAll(".lrow").forEach(el=>el.classList.remove("off"));
-panel.classList.remove("show");svg.transition().duration(600).call(zoom.transform,d3.zoomIdentity);refresh();};
+panel.classList.remove("show");clearHash();svg.transition().duration(600).call(zoom.transform,d3.zoomIdentity);refresh();};
 addEventListener("resize",()=>{svg.attr("width",innerWidth).attr("height",innerHeight);
 sim.force("center",d3.forceCenter(innerWidth/2,innerHeight/2+20)).alpha(.3).restart();});
+
+/* ============ 移动端浮动控件 ============ */
+const legBtn=document.getElementById("legBtn"),eraBtn=document.getElementById("eraBtn");
+if(legBtn)legBtn.onclick=()=>{const v=document.body.classList.toggle("show-leg");document.body.classList.remove("show-era");legBtn.classList.toggle("active",v);eraBtn.classList.remove("active");};
+if(eraBtn)eraBtn.onclick=()=>{const v=document.body.classList.toggle("show-era");document.body.classList.remove("show-leg");eraBtn.classList.toggle("active",v);legBtn.classList.remove("active");};
+
+/* ============ 深链分享 + 复制 ============ */
+let shareHash="";
+function setHash(h){shareHash=h;try{history.replaceState(null,"","#"+h)}catch(e){}}
+function clearHash(){shareHash="";try{history.replaceState(null,"",location.pathname+location.search)}catch(e){}}
+const pshare=document.getElementById("pshare");
+pshare.onclick=async()=>{const url=location.origin+location.pathname+(shareHash?"#"+shareHash:"");
+try{await navigator.clipboard.writeText(url);}catch(e){const t=document.createElement("textarea");t.value=url;t.style.position="fixed";t.style.opacity="0";document.body.appendChild(t);t.select();try{document.execCommand("copy")}catch(_){}t.remove();}
+pshare.textContent="✓";pshare.classList.add("ok");setTimeout(()=>{pshare.textContent="🔗";pshare.classList.remove("ok")},1200);};
+function applyHash(){const h=decodeURIComponent(location.hash.replace(/^#/,""));if(!h)return;
+const eq=h.indexOf("="),k=h.slice(0,eq),v=h.slice(eq+1);
+if(k==="p"&&pmap.has(v))selectNode(v,true);
+else if(k==="i"){const i=+v;if(i>=0&&i<INSIGHTS.length)showInsight(i);}
+else if(k==="e"){const a=v.split("~")[0],b=v.split("~")[1];const l=links.find(x=>(x.s===a&&x.t===b)||(x.s===b&&x.t===a));if(l)selectEdge(l);}}
+addEventListener("hashchange",applyHash);
+
+/* ============ 导出某人关系网 PNG (无外链头像, 规避CORS污染) ============ */
+function exportEgo(id){
+const p=pmap.get(id);
+let neigh=[...adj.get(id)];
+neigh.sort((x,y)=>(deg[y]||0)-(deg[x]||0));
+const capped=neigh.length>28;if(capped)neigh=neigh.slice(0,28);
+const w=1200,h=820,cv=document.createElement("canvas");cv.width=w;cv.height=h;const g=cv.getContext("2d");
+g.fillStyle="#0a0d1a";g.fillRect(0,0,w,h);
+g.textBaseline="alphabetic";
+g.fillStyle="#e8ecf8";g.font="bold 32px 'PingFang SC','Microsoft YaHei',sans-serif";g.fillText(p.zh+" 的关系网",44,58);
+g.fillStyle="#8a93b8";g.font="15px 'PingFang SC',sans-serif";g.fillText(p.en+" · "+p.org+" · 共 "+(deg[id]||0)+" 条关系"+(capped?"(图示前28条)":""),44,84);
+const cx=w/2,cy=h/2+44,Rr=Math.min(w,h)*0.32;
+const pts=neigh.map((nid,i)=>{const a=-Math.PI/2+i/neigh.length*2*Math.PI;return{id:nid,x:cx+Math.cos(a)*Rr,y:cy+Math.sin(a)*Rr,a};});
+pts.forEach(pt=>{const r=edgeOf.get(id+"|"+pt.id);g.strokeStyle=KINDS[r.k][1];g.globalAlpha=.45;g.lineWidth=2;g.beginPath();g.moveTo(cx,cy);g.lineTo(pt.x,pt.y);g.stroke();});
+g.globalAlpha=1;
+pts.forEach(pt=>{const np=pmap.get(pt.id);g.fillStyle=GROUPS[np.g][1];g.beginPath();g.arc(pt.x,pt.y,9,0,7);g.fill();
+g.fillStyle="#dfe6ff";g.font="14px 'PingFang SC',sans-serif";const right=Math.cos(pt.a)>=0;g.textAlign=right?"left":"right";g.fillText(np.zh,pt.x+(right?14:-14),pt.y+5);});
+g.fillStyle=GROUPS[p.g][1];g.beginPath();g.arc(cx,cy,18,0,7);g.fill();
+g.fillStyle="#fff";g.textAlign="center";g.font="bold 16px 'PingFang SC',sans-serif";g.fillText(p.zh,cx,cy-26);
+g.textAlign="left";g.fillStyle="#5a627f";g.font="13px 'PingFang SC',sans-serif";g.fillText("Tech Power Map · ryanliangwh.github.io/tech-power-map",44,h-28);
+try{const a=document.createElement("a");a.download="关系网-"+p.zh+".png";a.href=cv.toDataURL("image/png");a.click();}catch(e){alert("导出失败: "+e.message);}}
 
 /* ============ 隐藏关系洞察 ============ */
 
@@ -301,7 +392,7 @@ pb.innerHTML=`<div class="rel" style="cursor:default;border-color:#4d5a8f"><div 
 +`<div class="rel" id="backIns" style="text-align:center"><div class="rh" style="justify-content:center">← 返回洞察列表</div></div>`;
 document.getElementById("backIns").onclick=showInsightList;
 panel.classList.add("show");}
-function showInsight(i){const it=INSIGHTS[i];renderChainDetail(it.t,it.n,it.p);}
+function showInsight(i){const it=INSIGHTS[i];renderChainDetail(it.t,it.n,it.p);setHash("i="+i);}
 function showRandom(){
 for(let tries=0;tries<600;tries++){
 const a=nodes[Math.random()*nodes.length|0],b=nodes[Math.random()*nodes.length|0];
@@ -334,7 +425,7 @@ if(u){cache[n.id]=u;setAva(n.id,u);got++;return;}}catch(e){}}}
 await Promise.all(Array.from({length:8},async()=>{while(qi<todo.length){await one(todo[qi++]);}}));
 try{localStorage.setItem("tpm_ava_v2",JSON.stringify(cache))}catch(e){}
 if(got)refresh();})();
-updateLabels(1);refresh();
+updateLabels(1);refresh();applyHash();
 </script>
 </body>
 </html>
